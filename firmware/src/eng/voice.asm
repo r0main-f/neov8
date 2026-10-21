@@ -264,11 +264,19 @@ vk_closed:
 
 ; Event A = key | $80 on, timer of key (A&$7F) -> main-loop FIFO. Tick context (or SEI).
 vk_push:
-        ldy vk_fw
-        sta vk_fifo,y
+        jsr seq_tap                 ; sequencer: key state, recording (eng/seq.asm; A preserved)
+        pha
         and #$7f
         tax
         lda vk_cnt,x
+        tax
+        pla
+; A = key | $80 on, X = velocity timer -> FIFO. The sequencer's playback enters here (tick / IRQ context, or
+; main loop with the DAC locked).
+vk_pushx:
+        ldy vk_fw
+        sta vk_fifo,y
+        txa
         sta vk_fifo+1,y
         tya
         clc

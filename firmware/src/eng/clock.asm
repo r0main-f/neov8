@@ -119,10 +119,12 @@ clk_half:   .byte 12, 6, 4, 3, 2, 2, 1, 1
 ; New phase in A: arpeggiator clock, clock-out jack (PIA2 CB2 = bit 3), tempo LED (byte 9 bit 2).
 clk_out:
         sta en_aphase
+        bit seq_cb2                 ; the sequencer owns the jack while it runs / its metronome is on
+        bmi @j
         and #$08
         ora #$36                    ; CRB: CB2 manual output, level = bit 3; output register selected
         sta PIA2_CRB
-        lda panel_disp+9
+@j:     lda panel_disp+9
         and #$fb
         bit en_aphase
         bpl @l

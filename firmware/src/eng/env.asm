@@ -713,7 +713,8 @@ eh_rel:                             ; release: level = curve
         jmp h6
         .res 11, $ff
 .endmacro
-        .align 256
+        .pushseg
+        .segment "PAGE"             ; page-aligned, at the start of the ROM (v8.cfg): no padding in CODE
 env_jt: ENV_GROUP eh_rel, eh_ea,  eh_ea,   eh_ea,  eh_rel, eh_hold, eh_hold    ; normal, key up
         ENV_GROUP eh_eb,  eh_dec, eh_hold, eh_att, eh_eb,  eh_eb,   eh_eb      ; normal, key down
         ENV_GROUP eh_rel, eh_dec, eh_ea,   eh_att, eh_rel, eh_hold, eh_hold    ; unconditional, key up
@@ -722,6 +723,7 @@ env_jt: ENV_GROUP eh_rel, eh_ea,  eh_ea,   eh_ea,  eh_rel, eh_hold, eh_hold    ;
         ENV_GROUP eh_eb,  eh_dec, eh_zc,   eh_att, eh_rel, eh_eb,   eh_hold    ; ADR, key down
         ENV_GROUP eh_rel, eh_ea,  eh_ea,   eh_ea,  eh_rel, eh_hold, eh_hold    ; reset to zero, key up
         ENV_GROUP eh_z9,  eh_dec, eh_hold, eh_att, eh_rel, eh_z9,   eh_z9      ; reset to zero, key down
+        .popseg
 
 env_tv:     .byte 0,1,2,3,4,5,6,7, 0,1,2,3,4,5,6,7                 ; voice of envelope e
 env_ts5:    .byte 5,13,21,29,37,45,53,61, 5,13,21,29,37,45,53,61   ; its VCO1 PWM slot

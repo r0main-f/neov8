@@ -62,6 +62,7 @@ CAL_FAILED  = CAL+$60       ; bit v = voice disabled by the last autotune (voice
 TESTPORT    = $0FF0
 TP_CMD      = TESTPORT+0    ; 0 idle. 1 recall program (X side, A num) 2 key on (A note, Y vel) 3 key off (A note)
                             ; 4 apply perf  5 PERF[X] = A  6 run autotune  7 side key on (X side, A note, Y vel)
+                            ; 8-12 sequencer: 8 seq_startstop 9 seq_clear 10 seq_tempo_set (A) 11 seq_erase (A) 12 seq_dump
 TP_A        = TESTPORT+1
 TP_X        = TESTPORT+2
 TP_Y        = TESTPORT+3
@@ -109,25 +110,43 @@ G_LAST_STEP = 16            ; for power-on
 G_SIZE      = 64
 
 ; ============================================================== polysequencer (eng/seq.asm) <-> UI (ui/seq.asm)
-; Switch state written by the UI (stock Rev4 sequencer page semantics), read by the engine at start/stop:
-;   seq_play   bit0 PLAY 1, bit1 PLAY 2        seq_rec    bit0 REC 1, bit1 REC 2
+; Switch state written by the UI (stock Rev4 sequencer page semantics), read by the engine at START / track ends.
+; The ENGINE CHANGES THEM like the stock does (the UI redraws its LEDs from them): REC off after a plain take,
+; song alternation (PLAY 1 <-> PLAY 2), bounce swaps (PLAY / REC 1 <-> 2), STOP in LOCK -> LOCK off + LOOP on,
+; PLAY of the played channel off at the end of an overdub. The stock ignored switch presses while running (PLAY 1/2
+; only ended the song repetition): the UI should not toggle them while seq_run <> 0.
+;   seq_play   bit0 PLAY 1, bit1 PLAY 2        seq_rec    bit0 REC 1, bit1 REC 2 (1+2: double-channel take)
 ;   seq_loop   LOOP (nonzero)                  seq_lock   LOCK (nonzero: continuous overdub / bounce)
-;   seq_song   SONG mode (nonzero)             seq_reps   2 B: song repeat counts ch1, ch2 (0-99)
-;   seq_inst   INSTANT RECORD (nonzero)        seq_metro  metronome on (forces instant record, stock)
-;   seq_metbeat 0 quarter, 1 eighth, 2 sixteenth   seq_quant  0 none .. 10 (stock table)
-;   seq_tempo  20-251 BPM                      seq_clk    0 internal, 1 external (SEQ CK IN), 2 MIDI clock
+;   seq_song   SONG mode (nonzero)             seq_reps   2 B: song repeat counts ch1, ch2 (1-99; 0 plays once)
+;   seq_inst   INSTANT RECORD (nonzero)        seq_metro  metronome on (nonzero; the engine notices a change in
+;                                              seq_service: T1 runs for the clicks; the stock's EDIT)
+;   seq_metbeat 0 quarter, 1 eighth, 2 sixteenth   seq_quant  0 none .. 10 (stock table: 1 6 8 12 16 24 32 48 64 96
+;                                              128 clocks of 1/96 quarter; read live, as the stock)
+;   seq_tempo  20-251 BPM (UI value; seq_tempo_set programs T1, rounding DOWN to a tempo the stock table makes,
+;              seq_tempo is left as typed - the stock showed the rounded tempo)
+;   seq_clk    0 internal, 1 external (SEQ CK IN), 2 MIDI clock - change only while stopped (stock)
 ;   seq_extrate 0 = 96, 1 = 48, 2 = 24 ppqn (external clock)
 ; Engine state read by the UI:
-;   seq_run    0 stopped, 1 running            seq_mode   what runs: bit0 playing, bit1 recording, bit2 waiting
-;                                              for the first key (record not instant), bit3 song
-;   seq_free   16-bit events left              seq_len    2 x 16-bit events per channel
-;   seq_status last start/stop result: 0 ok, 1 nothing to play, 2 nothing selected, 3 song needs both channels,
-;              4 song refused while recording, 5 memory full
-; Routines: seq_init  seq_startstop (UI START/STOP: validates, starts or stops; sets seq_status)
-;   seq_clear (stock CLEAR: switches off, stop)  seq_erase (A = channel mask: forget the recorded data)
-;   seq_tempo_set (A = BPM)  seq_service (main loop)  seq_dump (MIDI SysEx of the sequence data, background)
-;   The engine records keyboard events and plays them through the voice assigner like the stock ($9000, $948F,
-;   $B000 queues). Data in volatile RAM (lost at power-off, as the stock).
+;   seq_run    nonzero = running ($FF)         seq_mode   bit0 playing, bit1 recording, bit2 recording waits (for the
+;                                              metronome beat, or, record not instant, for the first key: the time
+;                                              before it is dropped), bit3 song running
+;   seq_free   16-bit events left (set at START when recording, counts down per key event)
+;   seq_len    2 x 16-bit events per channel (end marker not counted; after a double take: ch1 all, ch2 0)
+;   seq_status last seq_startstop: 0 ok, 1 nothing to play (the PLAY channel is empty, nothing recorded),
+;              2 nothing selected or a combination the stock refused (LOCK: REC = PLAY with LOOP, REC on the other
+;              channel without; REC 1+2 with one PLAY; both PLAY with one REC; LOCK + SONG), 3 song needs data on
+;              both channels / not with both PLAY, 4 song refused while recording, 5 memory full
+;   seq_cb2    bit7: the sequencer owns the clock-out jack (PIA2 CB2: running or metronome on); clock.asm reads it
+; Routines (main loop): seq_init (eng_init)  seq_startstop (START/STOP: checks, starts or stops; seq_status)
+;   seq_clear (switches PLAY/REC/LOOP/LOCK/SONG/INST/METRO off, stop; a take in progress is kept)
+;   seq_erase (A = channel mask: stop, forget the data)  seq_tempo_set (A = BPM)
+;   seq_dump (background SysEx dump of the sequence memory, docs/midi-implementation.md; F0 03 24/25)
+; Hooks (not for the UI): seq_service (eng_service), seq_tick (eng_tick), seq_tap (voice.asm vk_push: keyboard key
+;   events), seq_clock (IRQ: one clock event), seq_retune (main.s autotune), seq_sysex (midi.asm, cmd $24/$25).
+;   IRQ interface (main.s): seq_cpend (clock events pending), seq_t1on (poll PTM T1), seq_caon (count PIA2 CA1).
+; Capacity: 1140 slots of 3 B shared by both channels (channel 2 stored downwards): one channel up to 1138 events
+; (the stock: 850 each, 1700 double). Data in volatile RAM (BSS3, lost at power-off, as the stock).
+; Test port (below): TP_CMD 8 seq_startstop, 9 seq_clear, 10 seq_tempo_set (A), 11 seq_erase (A), 12 seq_dump.
 
 ; ============================================================== module API (global labels with module prefix)
 ; core:  panel_*, adc_read, cv_*            (main.s, panel.asm, adc.asm, cv.asm)
@@ -147,7 +166,9 @@ FW_VERSION_MIN = 1
 ; midi:  midi_init  midi_nmi  midi_poll (main loop)  midi_tx (A byte, X/Y kept)  midi_note_out (X side, A note, Y vel; Y=0 off)
 ;        midi_pc_out (X side, A num)  midi_cc_out (X side, A cc, Y val)  midi_nrpn_out (X side, A byte, Y raw value)
 ;        midi_sx_event (A cmd, X data or $FF)  midi_dump_all (A parts: bit0 programs, 1 steps, 2 globals, 3 taper/fsw block)
-;        vars: midi_clock (16-bit, 24 ppqn ticks)  midi_rtflags (bit0 start, 1 continue, 2 stop; consumer clears)
+;        vars: midi_clock (16-bit, 24 ppqn ticks)  midi_rtflags (bit0 start, 1 continue, 2 stop; consumer clears:
+;        the arpeggiator clock)  midi_rtcnt (3 B: start, continue, stop counts, never cleared - each consumer keeps
+;        its last-seen copy: any number of consumers, nothing lost; the sequencer uses these)
 ;        midi_kbd_off (SysEx cmd 3)  midi_rxall (set by the UI's SYSEX RECEIVE page: accept data without the
 ;        controller flag)  midi_sxstat (0 ok, 1 protected, 2 malformed)  midi_sxcount  midi_mon (3 B)  midi_sxbuf/len
 ;        midi_rxovr midi_hwovr midi_txdrop (error counters). Details: docs/midi-implementation.md.

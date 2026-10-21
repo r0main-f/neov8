@@ -27,8 +27,10 @@ Public API: `api.inc` (`eng_*`). Rules: `firmware/ARCHITECTURE.md`.
 | `voice.asm` | `vx_` | engine agent | key assignment, pitch (incl. autotune CAL), glide/gliss, VCF tracking, velocity/tapers, VPK-5 scan, kbd gate/CV, unison/hold/octave/split/layer |
 | `env.asm` | `env_` | engine agent | 16 ADSRs, ADSR2->VCA, ADSR1->VCF, ADSR->PWM, volume gate |
 | `lfo.asm` | `lfo_` | engine agent | LFO1/LFO2 x 2 sides, delay, sync, retrigger, kbd tracking, LFO->PWM |
+| `seq.asm` | `seq_` / `sq_` | engine agent | polysequencer (stock $9000 logic, $948F clock step, $B37F-$B657 events, $A0ED quantize pass) |
 
-Benches can replace sub-modules: `-D STUB_VX`, `-D STUB_ENV`, `-D STUB_LFO` (files `stub_*.asm`).
+Benches can replace sub-modules: `-D STUB_VX`, `-D STUB_ENV`, `-D STUB_LFO`, `-D STUB_SEQ` (files `stub_*.asm`;
+the eng stub includes `stub_seq.asm` and `vars_seq.inc` too).
 
 ## What apply.asm provides (verified equal to stock by sim/test/fw-eng-apply.test.ts)
 
@@ -50,7 +52,7 @@ Called for both sides on every program change (`eng_apply_prog` -> `ap_all`):
 ## Tick schedule (eng_tick, IRQ context, 488.2 Hz)
 
 ```
-every tick: ctl_out (1 MIDI-controller CV), clk_tick (arp clock), vx_tick (VPK-5 scan)
+every tick: ctl_out (1 MIDI-controller CV), clk_tick (arp clock), seq_tick (metronome pulse, MIDI clock), vx_tick (VPK-5 scan)
 phase 0: env_tick (16 envelopes ADSR2 v7..0 then ADSR1 v7..0, ADSR->PWM, volume gate, clears vx_rel)
 phase 1: vx_glide X=1 (voices 4-7), lfo_tick2 (LFO2 R, L), lfo_pwmstep, eng_refresh
 phase 2: lfo_tick1 (LFO1 R, L), vx_glide X=0 (voices 0-3) - or, RIGHT glide off, lfo_pwmstep -, eng_refresh
@@ -151,3 +153,58 @@ loop holds the DAC), so velocity-sensitive tests use velocities at the flat ends
 `eng_key_on/off` (keyboard routing by PERF), `eng_side_on/off` (MIDI: explicit side), `eng_all_off`,
 `eng_apply_perf` (-> `vx_apply_perf`, then full apply), `eng_service` (-> `vx_service`), `vx_refresh`
 (after a program change: voices recompute pitch/Fc/velocity), `eng_lowest_held`.
+
+## Polysequencer (seq.asm)
+
+Contract with the UI: `api.inc` "polysequencer". New code reproducing the stock Rev4 sequencer.
+
+**Clock.** 96 clock events per quarter note, counted by the IRQ into `seq_cpend` (main.s polls PIA2 CA1 = SEQ CK IN
+when `seq_caon`, PTM T1 when `seq_t1on`, then T2) and run by `run_ticks` interleaved with the control ticks (one
+clock event, one tick, ... as the stock's $80F7 loop), with interrupts enabled, deferred while the main loop holds
+the DAC (`cv_unlock` also runs pending clock events). Sources: T1 (latch = `tb_tempo_t1[BPM-20]` x 256, CR1 $C2 =
+IRQ + output O1 = SEQ CLK OUT, $42 = IRQ only), SEQ CK IN (each edge = 1/2/4 clock events for 96/48/24 ppqn), MIDI
+clock (NeoV8: `seq_tick` adds the new `midi_clock` counts; each = 4 clock events). `seq_clock` -> `sq_clk1` per clock
+event = stock $94A5: metronome countdown (beat = 96/48/24 clocks, PIA2 CB2 pulse of 3 ticks; a START waits for the
+next beat when the metronome is on), events whose delta has elapsed are played, the record time advances by one
+quantize step every step's clocks (stock $95BF; START rounds to the nearest grid point).
+
+**Events** (stock format, 3 B): b0 bit7 key down, bit6 delta bit 12, bits 0-5 VPK-5 key index; b1 delta bits 8-11
+| velocity class 0-14 (VPK-5 timer - $C0, 13-30 -> 13, 31+ -> 14 played back as timer 32) or $F = end marker; b2
+delta bits 0-7 (clocks since the previous event). Memory `seq_ev`: 1140 slots in BSS3; channel 1 (and a double
+take) from the bottom upwards, channel 2 from the top downwards (`sq_step` = +3 / -3), so a channel can use what the
+other leaves; the record pointer stays on the last slot of its room (stock $B38D: further events overwrite it).
+
+**Key path.** Recording taps the VPK-5 events in the tick (`vk_push` -> `seq_tap`: merged key state `seq_kd` = stock
+$0200, then the event with the current time). Playback injects key events into the same FIFO as the keyboard
+(`vk_pushx`, A = key | $80, X = timer): `vx_drain` routes them by the split point, tapers the velocity, sends MIDI,
+queues them - as the stock's $B3C5 -> $B116. When recording while playing (overdub, bounce) the played events go
+into the take too (stock). At a track end / stop (`sq_resync`, stock $B61A) keys the sequence holds go up and keys
+held on the keyboard go down again.
+
+**State machine.** `sq_go` (START/STOP, stock $9607), `sq_stopnow` (stop now or start, $963A), `sq_stopped`
+($9717), `sq_tend` (end of the played track, $9525), `sq_modes` (channels and pointers from the switches, $B4B6),
+`sq_recend` (end marker, cut of the time before the first event when not instant / no metronome / not overdub,
+zero-length guard, quantize pass `sq_post` = $A0ED). Modes: single take; REC + PLAY one channel (plays the take at
+STOP); overdub (PLAY one channel + REC the other: the take = played + new events, PLAY goes off at the end, recording
+goes on); continuous overdub (LOCK: the channels bounce at each end; STOP turns LOCK into LOOP); auto-continuous
+(REC + LOCK); double channel (REC 1 + REC 2); song (repeats ch1, ch2; LOOP repeats the song); Stevenson (PLAY + REC +
+LOOP + LOCK one channel: each STOP replaces the loop at its end); LOOP + STOP stops at the end of the loop.
+
+**Deliberate differences from the stock.** Start checks with `seq_status` instead of refusing switch chords as they
+are pressed (the UI toggles freely). The stock quantize pass reads past the end marker when a take ends with a group
+of simultaneous events (on zeroed RAM it ran ~0.5 s through $0C00-$3FFF, writing into I/O space): NeoV8 stops at
+the end marker. A loaded track of zero total length would loop forever in the IRQ: NeoV8 stops (`sq_guard`).
+CLEAR keeps a take in progress (the stock left it without an end marker). The arpeggiator clock leaves the clock-out
+jack to the sequencer while it runs or its metronome is on (the stock: whenever a sequencer switch / page was on).
+MIDI note input is not recorded (the stock recorded it in one MIDI mode, velocity fixed). Capacity 1138 / channel.
+
+**Parity** (`sim/test/fw-eng-seq.test.ts`): both ROMs record the same VPK-5 performance (event memory compared:
+identical with quantize; within 2 clocks without, the two machines' control ticks have different phases against the
+clock events), play it back (pitch of all voices, VCA envelopes, voice keys compared with a 20 ms window) in every
+mode above, plus metronome clicks, external clock, tempo table. The stock's event RAM is pre-filled with empty end
+markers (its quantize pass, see above). NeoV8 additions tested alone: start checks, MIDI clock / start / stop /
+continue, SysEx dump -> load round trip, zero-length guard, T1 back after autotune.
+
+**Cost.** One clock event: average 270 cycles, worst 2830 (loop end at 251 BPM: key resync + rewind + an 8-note
+chord). It shares the IRQ with the control tick like the stock's. Every tick: `seq_tick` + the IRQ polls add about
+40 cycles (the tick table above was measured before; with the sequencer: 3163 / 3542 / 4377 average in phase 0).

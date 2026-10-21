@@ -42,3 +42,4 @@ en_cpb:     .res 8          ; DAC PB (value bit 0 in bit 7, bend LSB >> 1 below)
         .include "eng/vars_voice.inc"
         .include "eng/vars_env.inc"
         .include "eng/vars_lfo.inc"
+        .include "eng/vars_seq.inc"

@@ -11,6 +11,7 @@ vx_key_off:     rts
 vx_side_on:     rts
 vx_side_off:    rts
 vx_all_off:     rts
+vk_pushx:       rts
 vx_recall:      rts
 eng_lowest_held:
         lda #$ff

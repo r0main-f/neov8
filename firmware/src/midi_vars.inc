@@ -19,6 +19,8 @@ midi_hwovr: .res 1          ; ACIA overruns (bytes lost before the NMI read them
 midi_txdrop: .res 1         ; bytes dropped by midi_tx after its full-ring timeout (wraps)
 midi_clock: .res 2          ; MIDI clock ($F8) count, 16-bit, counted in the NMI
 midi_rtflags: .res 1        ; set by the NMI: bit0 start ($FA), bit1 continue ($FB), bit2 stop ($FC); consumer clears
+midi_rtcnt: .res 3          ; counted by the NMI: start, continue, stop (wrap). Never cleared: each consumer keeps
+                            ; its last-seen copy (any number of consumers, no lost event)
 midi_kbd_off: .res 1        ; legacy SysEx cmd 3: 1 = "keyboard off" requested by a controller
 midi_rxall: .res 1          ; set by the UI SYSEX RECEIVE page: accept data dumps without the controller flag
 midi_sxstat: .res 1         ; last SysEx data message: 0 ok, 1 refused (memory protect), 2 malformed

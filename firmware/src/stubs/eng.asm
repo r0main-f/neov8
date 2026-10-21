@@ -14,3 +14,4 @@ eng_ctrl:       STUBCALL $18
 eng_compare:    STUBCALL $19
 eng_a440:       STUBCALL $1A
 eng_recalled:   STUBCALL $1B
+        .include "eng/stub_seq.asm"

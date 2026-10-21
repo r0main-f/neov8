@@ -210,15 +210,29 @@ testport:
         jsr autotune
         jmp @done
 @c7:    cmp #7
-        bne @done
+        bne @c8
         ldx TP_X
         lda TP_A
         ldy TP_Y
         jsr eng_side_on
+        jmp @done
+@c8:    sbc #8                      ; (C = 1) 8-12: sequencer
+        cmp #5
+        bcs @done
+        jsr @seq
 @done:  lda #0
         sta TP_CMD
         inc TP_DONE
         rts
+@seq:   tax
+        lda tp_seqhi,x
+        pha
+        lda tp_seqlo,x
+        pha
+        lda TP_A
+        rts
+tp_seqlo:   .lobytes seq_startstop-1, seq_clear-1, seq_tempo_set-1, seq_erase-1, seq_dump-1
+tp_seqhi:   .hibytes seq_startstop-1, seq_clear-1, seq_tempo_set-1, seq_erase-1, seq_dump-1
 
 ; ------------------------------------------------------------------ autotune entry point
 ; The one way to run the autotune (AUTO TUNE button, MIDI tune request, test port). The tuner runs with
@@ -233,6 +247,7 @@ autotune:
         sta midi_rxovr
         lda #0
         sta en_a440                 ; the tuner reprogrammed the PTM: the reference tone is off
+        jsr seq_retune              ; ... and the sequencer's T1 is put back
         jmp eng_all_off
 
 ; ------------------------------------------------------------------ chip init (same order as the stock ROM)
@@ -286,22 +301,35 @@ bram_wait:
 @ok:    rts
 
 ; ------------------------------------------------------------------ interrupts
-; IRQ: wired-OR of PIA1, PIA2, PTM. Only PTM T2 (control tick) is enabled for now.
+; IRQ: wired-OR of PIA1, PIA2, PTM. Like the stock ($80B2): PIA2 CA1 (SEQ CK IN) and PTM T1 (sequencer tempo)
+; count sequencer clock events (seq_cpend), PTM T2 counts control ticks; then the pending work runs.
 irq:
         pha
         txa
         pha
         tya
         pha
-        lda PTM_CR2                 ; status
-        and #$02
-        beq @out
-        lda PTM_T2MSB               ; status read + counter read clears the flag
+        lda PIA2_CRA                ; CA1 edge: SEQ CK IN
+        bpl @t1
+        lda PIA2_PA                 ; reading the port clears the flag
+        lda seq_caon
+        beq @t1
+        inc seq_cpend
+@t1:    lda PTM_CR2                 ; status
+        lsr                         ; C = T1
+        bcc @t2
+        ldx seq_t1on
+        beq @t2
+        ldx PTM_T1                  ; status read + counter read clears the flag
+        inc seq_cpend
+@t2:    and #$01                    ; T2 (control tick)
+        beq @run
+        lda PTM_T2MSB
         inc ticks
         bne @t
         inc ticks+1
 @t:     inc tickPend
-        lda dacLock
+@run:   lda dacLock
         ora tickBusy
         bne @out                    ; main loop owns the DAC, or tick work already running: just count
         jsr run_ticks
@@ -324,14 +352,22 @@ run_ticks:
         pha
         lda ptr+1
         pha
-@loop:  lda tickPend
-        beq @end
+@loop:  lda seq_cpend                ; one sequencer clock event, one tick, ... (stock order)
+        beq @tk
+        dec seq_cpend
+        cli
+        jsr seq_clock
+        sei
+@tk:    lda tickPend
+        beq @nx
         dec tickPend
         cli
         jsr eng_tick
         sei
-        jmp @loop
-@end:   pla
+@nx:    lda tickPend
+        ora seq_cpend
+        bne @loop
+        pla
         sta ptr+1
         pla
         sta ptr

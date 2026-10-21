@@ -1,6 +1,7 @@
 // Runs spec/scenarios/*.yaml against the NeoV8 ROM (real core + UI, logging stubs for eng/midi/tune) in the
 // machine model, through the UIDBG adapter (sim/src/machine/neov8-inspect.ts). Scenarios tagged
-// `requires: engine` (voices, autotune progress, held keys) only run on the prototype.
+// `requires: engine` (voices, autotune progress, held keys) only run on the prototype; `requires: full-rom`
+// (polysequencer page) run on the full ROM with the real engine.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -54,8 +55,10 @@ export function protoBattery(): Uint8Array {
 }
 
 let rom: Uint8Array;
-const boot = () => {
-  const b = new MachineBackend('neov8-ui', rom, protoBattery());
+/** full ROM (real engine): scenarios tagged `requires: full-rom` (the polysequencer page needs eng/seq.asm) */
+let fullRom: Uint8Array;
+const boot = (r: Uint8Array = rom) => {
+  const b = new MachineBackend('neov8-ui', r, protoBattery());
   b.run(300);
   return b;
 };
@@ -76,8 +79,8 @@ function subsetMatch(actual: any, expected: any, path: string) {
   } else expect(actual, path).toEqual(expected);
 }
 
-function runOnRom(sc: Scenario) {
-  const b = boot();
+function runOnRom(sc: Scenario, r: Uint8Array = rom) {
+  const b = boot(r);
   const m = b.machine;
   for (const [i, st] of sc.steps.entries()) {
     const where = `step ${i + 1} ${JSON.stringify(st)}`;
@@ -113,14 +116,21 @@ beforeAll(() => {
   rmSync(join(ROOT, `firmware/${BUILD}/main.o`), { force: true }); // gen_tables.inc is not a make dependency
   buildFirmware(BUILD, FULL ? [] : ['STUB_ENG', 'STUB_MIDI', 'STUB_TUNE']);
   rom = loadNeoRomFrom(BUILD);
-}, 60_000);
+  if (FULL) fullRom = rom;
+  else {
+    rmSync(join(ROOT, 'firmware/build-uifull/main.o'), { force: true });
+    buildFirmware('build-uifull', []);
+    fullRom = loadNeoRomFrom('build-uifull');
+  }
+}, 120_000);
 
 for (const f of files) {
   const scenarios: Scenario[] = YAML.parse(readFileSync(join(dir, f), 'utf8'));
   describe(`NeoV8 ROM: ${f}`, () => {
     for (const sc of scenarios) {
       const req = ([] as string[]).concat(sc.requires ?? []);
-      it.skipIf(req.includes('engine') || (req.includes('seq-page') && !process.env.NEOV8_SEQ))(sc.name, () => runOnRom(sc)); // seq-page: until the engine lands
+      const full = req.includes('full-rom');
+      it.skipIf(req.includes('engine'))(sc.name, () => runOnRom(sc, full ? fullRom : rom));
     }
   });
 }

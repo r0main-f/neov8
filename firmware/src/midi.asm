@@ -86,6 +86,7 @@ midi_nmi:
         bcs @tx                     ; $FD, $FE active sensing, $FF system reset: ignored (no reset!)
         sbc #$f9                    ; C = 0 here: A - $FA = 0 start, 1 continue, 2 stop
         tax
+        inc midi_rtcnt,x            ; per-event counts: any number of consumers, nothing to clear
         lda midi_rtbit,x
         ora midi_rtflags
         sta midi_rtflags
@@ -887,13 +888,14 @@ midi_sx_end:
         bcc @r0
         lda midi_sxbuf
         cmp #$7e
-        beq midi_sx_univ
+        beq @univ
         cmp #MIDI_OP_ID
         bne @r0
         lda NV_GLOBALS+G_RX         ; Rev4 "MX": every ID-3 message needs it
         and #$08
         bne @mx
 @r0:    rts
+@univ:  jmp midi_sx_univ
 @mx:
         lda midi_sxbuf+1
         and #$3f
@@ -905,6 +907,10 @@ midi_sx_end:
         beq @ident
         cmp #$22
         beq @dump
+        cmp #$24
+        beq @seq
+        cmp #$25
+        beq @seq
         cmp #$23
         bne @ui
         jsr midi_ctlok              ; NeoV8 globals
@@ -919,6 +925,7 @@ midi_sx_end:
         jmp midi_blk_rx
 @ident: ldx #MSG_IDENT
         jmp midi_txtab
+@seq:   jmp seq_sysex               ; sequencer data (eng/seq.asm)
 @dump:  lda #$0f
         ldx midi_sxlen
         cpx #3

@@ -3,6 +3,7 @@
 ;   voice.asm  key assignment, pitch, glide, VCF tracking, velocity, VPK-5 scan  (vx_*)
 ;   env.asm    16 ADSRs, ADSR->VCA/VCF/PWM, volume gate                          (env_*)
 ;   lfo.asm    LFO1/LFO2 per side, delay, sync, retrigger, LFO->PWM               (lfo_*)
+;   seq.asm    polysequencer (seq_* public, sq_* private)
 ; Internal contract: eng/ENGINE.md.
 
         .include "eng/apply.asm"
@@ -22,6 +23,11 @@
 .else
         .include "eng/lfo.asm"
 .endif
+.ifdef STUB_SEQ
+        .include "eng/stub_seq.asm"
+.else
+        .include "eng/seq.asm"
+.endif
 
 eng_init:
         lda #1
@@ -36,7 +42,7 @@ eng_init:
         jsr vx_init
         jsr env_init
         jsr lfo_init
-        rts
+        jmp seq_init
 
 ; Control tick (IRQ context, interrupts enabled, never re-entered). The stock 3-phase plan ($8127):
 ;   every tick: MIDI-controller CV (1 of 8), VPK-5 key scan
@@ -51,6 +57,7 @@ eng_tick:
         and #7
         sta en_cidx
         jsr clk_tick                ; arpeggiator clock, clock-out jack, tempo LED
+        jsr seq_tick                ; sequencer: metronome pulse, MIDI clock
         jsr vx_tick                 ; VPK-5 scan, key events
         ldx en_phase
         beq @p0
@@ -120,6 +127,7 @@ eng_refresh:
 
 ; Main-loop work.
 eng_service:
+        jsr seq_service
         jmp vx_service
 
 ; Battery program A -> edit buffer of side X (WHOLE 8: RIGHT), program number in PERF, then apply.

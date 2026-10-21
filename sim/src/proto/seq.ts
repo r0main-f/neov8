@@ -1,6 +1,6 @@
 // NeoV8 polysequencer, prototype model (the firmware engine reproduces the stock Rev4 sequencer exactly;
 // this model gives the UI the same states, rules and messages so the page can be designed and tested).
-// Two channels of events at 96 ppqn; 850 events per channel, or 1700 when recording both at once.
+// Two channels of events at 96 ppqn sharing 1138 event slots (firmware eng/seq.asm; stock: 850 per channel).
 
 export const PPQN = 96;
 /** stock quantize settings 0-A, in 96 ppqn ticks (0 = none): 64th, 32T, 32nd, 16T, 16th, 8T, 8th, 4T, 4th, 2T */
@@ -8,7 +8,7 @@ export const QUANT_TICKS = [0, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128];
 export const QUANT_NAMES = ['--', '64', '32t', '32', '16t', '16', '8t', '8', '4t', '4', '2t'];
 /** metronome beat: 0 quarter, 1 eighth, 2 sixteenth */
 export const METRO_TICKS = [96, 48, 24];
-export const CAPACITY = 1700;
+export const CAPACITY = 1138;
 
 export interface SeqEvent { t: number; note: number; on: boolean; vel: number }
 
@@ -190,6 +190,7 @@ export class ProtoSeq {
     this.playing = 0;
     // auto-playback: REC + PLAY on the same channel plays the new take as soon as recording stops
     const auto = recorded & this.play;
+    this.rec &= ~recorded; // REC turns off after a take (stock)
     if (auto && !this.song) {
       this.playing = auto;
       this.begin();

@@ -33,7 +33,7 @@ Side numbering: 0 = RIGHT, 1 = LEFT (as the stock ROM). `G_RX` bits: 0 notes, 1 
 | Song position / select | × | × | ignored |
 | Tune request $F6 | × | ○ | runs the autotune (stock behaviour), only with SysEx on |
 | Clock $F8 | × | ○ | counted in `midi_clock` (16 bit) by the NMI |
-| Start / continue / stop | × | ○ | `midi_rtflags` bit0 / bit1 / bit2, set by the NMI, cleared by the consumer (arpeggiator) |
+| Start / continue / stop | × | ○ | `midi_rtflags` bit0 / bit1 / bit2 (arpeggiator, cleared by it) and `midi_rtcnt` counts (sequencer, MIDI clock mode: start / continue = START from the beginning, stop = STOP) |
 | Active sensing $FE | × | ignored | no timeout |
 | System reset $FF | × | **ignored** | the stock ROM rebooted on $FF |
 
@@ -143,7 +143,15 @@ Transmitted by NeoV8 (helpers for the UI): `midi_sx_event (A cmd, X data or $FF)
 | $20 | `F0 03 20 F7` identify | reply `F0 03 21 4E 38 <major> <minor> F7` ("N8" + firmware version) |
 | $22 | `F0 03 22 mm F7` dump request | starts the bulk dump of parts `mm` (no mm = all), see below |
 | $23 | `F0 03 63 <128 nibbles> F7` globals (flag) | 64 bytes → `NV_GLOBALS`, then forwarded to `ui_sysex_in` so the UI reloads them |
+| $24 | `F0 03 64 bb <90 nibbles> F7` sequence block (flag) | 15 event slots (45 bytes, nibbles low first) → slots 15·bb… of the sequence memory (bb 0–75). Stops the sequencer. |
+| $25 | `F0 03 65 F7` sequence end (flag) | end of a sequence load: both channels are found again from their end markers (none within a channel's room: that channel is empty) |
 | other | | forwarded to `ui_sysex_in` (UI-level messages) |
+
+**Sequence dump** (`seq_dump`, sequencer page): 76 messages `F0 03 24 bb <90 nibbles> F7` (95 bytes: the whole
+1140-slot sequence memory, 3-byte events in the stock Rev4 format, eng/ENGINE.md "Polysequencer"), then
+`F0 03 25 F7`; 7 224 bytes, 2.3 s, paced like the bulk dump (one message whenever the TX ring has 100 bytes free).
+Sent with the controller flag 0: load it on the SYSEX RECEIVE page. Tempo, quantize and song settings are not
+part of it (the stock's sequence tape did not hold them either).
 
 Universal identity request `F0 7E <any> 06 01 F7` → `F0 7E 7F 06 02 03 4E 38 00 00 <maj> <min> 00 00 F7`.
 
@@ -165,6 +173,9 @@ or have the librarian set bit 6. Round trip tested.
   while /IRQ is still asserted.
 - RX ring full: the byte is dropped and counted in `midi_rxovr` (never silent). 256 bytes = 82 ms of
   continuous input with the main loop stalled (tested: 70 ms stall, nothing lost).
+- Real-time Start / Continue / Stop also increment `midi_rtcnt[0..2]` (never cleared): a consumer compares the
+  counts with its own copy, so several consumers (arpeggiator: `midi_rtflags`, sequencer: `midi_rtcnt`) never
+  steal events from each other and nothing is lost between a read and a clear.
 - `midi_poll` drains the whole ring each main-loop pass (the stock handled one message per pass).
 - `midi_tx (A)`: main-loop only, preserves X/Y. If the 256-byte TX ring is full it waits for the NMI;
   after ~1.3 ms without a free slot (4 byte times: the TX is stuck) the byte is dropped and counted in

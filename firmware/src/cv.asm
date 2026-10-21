@@ -21,6 +21,7 @@ cv_unlock:
         php
         sei
         lda tickPend
+        ora seq_cpend               ; (sequencer clock events, eng/seq.asm)
         beq @p
         lda tickBusy
         bne @p

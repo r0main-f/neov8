@@ -124,8 +124,10 @@ EDIT leaves. Values marked *step* belong to the performance and are saved with S
 
 ## 6c. Polysequencer page (A440 + ARP RIGHT; EDIT or ARP RIGHT leaves)
 
-The engine is the Rev4 sequencer, behaving exactly like the original (2 channels, 850 events each or 1700 when
-both are recorded together, loop, lock/bounce, overdub, song, quantize, metronome, internal / external clock).
+The engine is the Rev4 sequencer, behaving like the original (2 channels, loop, lock/bounce, overdub, song,
+quantize, metronome, internal / external clock; REC turns off after a take), plus MIDI clock and a SysEx dump.
+Capacity differs: 1138 event slots shared by both channels (stock: 850 per channel, 1700 in double-channel
+recording) - more for one channel, less for two.
 The page keeps the Rev4 button positions; what changes is that every state is visible and nothing fails silently.
 
 | Control | Function |

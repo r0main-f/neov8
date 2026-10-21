@@ -25,7 +25,8 @@ NeoV8 code is new; it reproduces the original's behaviour, verified in the emula
 2. **Variables** live in the module's vars file (`eng/vars.inc`, `ui/vars.inc`, `midi_vars.inc`,
    `tune_vars.inc`), included by `main.s` *before any code*, so ca65 knows zero-page symbols when they
    are used (forward references to zero page assemble as absolute and break `(zp),y`). Budget of zero
-   page: core 24, eng 112, ui 40, midi 16, tune 24 bytes. BSS areas: `BSS` $0200-$07FF, `BSS2`
+   page: core 24, eng 112 (sequencer 8 of them), ui 40, midi 16, tune 24 bytes. Page-aligned tables go in segment
+   `PAGE` (v8.cfg: first in ROM, no alignment padding inside CODE). BSS areas: `BSS` $0200-$07FF, `BSS2`
    $0A00-$0DFF, `BSS3` $1000-$1FFF (not cleared at reset). Shared temporaries `tmp`, `tmp2`, `ptr`, `ptr2`
    (core) may be used freely between calls; the IRQ saves `tmp`, `tmp2`, `ptr`.
 3. **Stubs and benches.** Each module has a logging stub in `src/stubs/`. Build a bench with
@@ -61,7 +62,8 @@ NeoV8 code is new; it reproduces the original's behaviour, verified in the emula
 ```
 main:  panel_poll -> ui_key      midi_poll      pot scan -> ui_pot      eng_service
        ui_service                 test port
-IRQ:   PTM T2 (488 Hz) -> tick counter; tick work runs with CLI, never re-entered:
-       eng_tick (CV refresh slice, VPK-5 scan, envelopes / LFOs / glide in 3 phases like the stock ROM)
+IRQ:   PIA2 CA1 (SEQ CK IN) / PTM T1 (sequencer tempo) -> seq_cpend, PTM T2 (488 Hz) -> tick counter; the work
+       runs with CLI, never re-entered, one sequencer clock event then one tick (stock order):
+       seq_clock (eng/seq.asm), eng_tick (CV refresh slice, VPK-5 scan, envelopes / LFOs / glide in 3 phases)
 NMI:   midi_nmi (68B50 RX/TX rings only)
 ```
