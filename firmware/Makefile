@@ -5,7 +5,7 @@ BUILD ?= build
 MAIN ?= src/main.s
 DEFS ?=
 OBJ = $(BUILD)/main.o
-INC = $(wildcard src/*.inc) $(wildcard src/*.asm) $(wildcard src/*/*.asm) $(wildcard test/*.asm) $(wildcard src/stubs/*) gen/rev4-tables.inc Makefile
+INC = $(wildcard src/*.inc) $(wildcard src/*.asm) $(wildcard src/*/*.asm) $(wildcard src/*/*.inc) $(wildcard test/*.asm) $(wildcard src/stubs/*) gen/rev4-tables.inc Makefile
 
 all: $(BUILD)/neov8.bin $(BUILD)/neov8-8000.bin size
 

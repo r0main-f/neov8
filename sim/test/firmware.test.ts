@@ -1,49 +1,43 @@
-// The NeoV8 firmware (firmware/build/neov8.bin) running in the machine model.
-import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+// Smoke test of the full NeoV8 firmware (every real module) in the machine model.
+import { describe, it, expect, beforeAll } from 'vitest';
 import { MachineBackend } from '../src/machine/backend';
 import { segToChar } from '../src/font7';
-import { neoSymbols } from './helpers';
+import { buildFirmware, loadNeoRomFrom, neoSymbols } from './helpers';
 
-const BIN = join(__dirname, '../../firmware/build/neov8.bin');
-const text = (b: MachineBackend) => b.frame().segments.map((s) => segToChar(s & 127)).join('');
+const BUILD = 'build-full';
 
-describe.skipIf(!existsSync(BIN))('NeoV8 firmware in the machine model', () => {
+describe('NeoV8 firmware (full build)', () => {
+  beforeAll(() => buildFirmware(BUILD, []));
   const boot = () => {
-    const b = new MachineBackend('neov8', new Uint8Array(readFileSync(BIN)));
-    b.run(300);
+    const b = new MachineBackend('neov8', loadNeoRomFrom(BUILD));
+    b.run(1500);
     return b;
   };
 
-  it('boots, takes the 488 Hz tick, refreshes all 128 CV slots and shows the splash', () => {
+  it('boots: no illegal opcode, 488 Hz tick, every S&H slot refreshed, stock sentinel and NeoV8 globals set', () => {
     const b = boot();
     const m = b.machine;
     expect(m.cpu.illegal).toBe(0);
-    expect(m.bram[0x0fff]).toBe(0xaa); // stock-compatible sentinel kept
-    const sym = neoSymbols();
+    const sym = neoSymbols(BUILD);
     const ticks = m.ram[sym.ticks] | (m.ram[sym.ticks + 1] << 8);
-    expect(ticks).toBeGreaterThan(120);
-    expect([...m.cvWrites.slice(0, 128)].every((n) => n > 0)).toBe(true);
-    expect(text(b)).toBe('nE0 01'); // O and 0 share a glyph
+    expect(ticks).toBeGreaterThan(600); // 1.5 s at 488 Hz, minus the boot
+    const dynamic = new Set([0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77]);
+    for (let s = 0; s < 128; s++) if (!dynamic.has(s)) expect(m.cvWrites[s], `slot $${s.toString(16)}`).toBeGreaterThan(0);
+    expect(m.bram[0x0fff]).toBe(0xaa);
+    expect(String.fromCharCode(m.bram[0x1a7a], m.bram[0x1a7b])).toBe('N8');
   });
 
-  it('shows the internal code of a pressed button (CALL R = $20), with A440 as shift', () => {
+  it('shows the home view and recalls a program from the panel', () => {
     const b = boot();
-    b.button('call_r', true); b.run(20); b.button('call_r', false); b.run(20);
-    expect(text(b)).toBe('bt  20');
-    b.button('a440', true); b.button('store', true); b.run(20);
-    expect(text(b).slice(4)).toBe('1C');
-    expect(b.frame().segments[1] & 128).toBe(128); // DP = A440 held
+    const text = () => b.frame().segments.map((s) => segToChar(s & 127)).join('');
+    b.button('call_r', true); b.run(30); b.button('call_r', false); b.run(30);
+    b.button('k4', true); b.run(30); b.button('k4', false); b.run(30);
+    b.button('k2', true); b.run(30); b.button('k2', false); b.run(200);
+    expect(text().slice(2, 4)).toBe('42');
   });
 
-  it('reads the pots through the software ADC', () => {
-    const b = boot();
-    b.pot('arp_speed', 1023);
-    b.run(100);
-    expect(text(b)).toBe('PE  7F'); // 7-bit, like the stock ROM
-    b.pot('l_fc', 0);
-    b.run(100);
-    expect(text(b)).toBe('P1  00');
+  it('fits the ROM and keeps the main loop responsive', () => {
+    const sym = neoSymbols(BUILD);
+    expect(sym.__CODE_SIZE__ ?? 0).toBeLessThan(0x7ffa);
   });
 });

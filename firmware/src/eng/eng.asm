@@ -40,8 +40,8 @@ eng_init:
 
 ; Control tick (IRQ context, interrupts enabled, never re-entered). The stock 3-phase plan ($8127):
 ;   every tick: MIDI-controller CV (1 of 8), VPK-5 key scan
-;   phase 0: 16 envelopes + ADSR->PWM + volume gate, LFO->PWM step
-;   phase 1: glide voices 4-7, LFO2 both sides, S&H refresh slice
+;   phase 0: 16 envelopes + ADSR->PWM + volume gate
+;   phase 1: glide voices 4-7, LFO2 both sides, LFO->PWM step, S&H refresh slice
 ;   phase 2: LFO1 both sides, glide voices 0-3 (RIGHT glide off: an LFO->PWM step instead), refresh slice
 eng_tick:
         ldx en_cidx                 ; one MIDI-controller CV per tick (all 8 every 16 ms)
@@ -62,7 +62,7 @@ eng_tick:
         ldx #0
         jsr vx_glide
         jmp @p2e
-@pw:    jsr lfo_pwmstep
+@pw:    jsr lfo_pwmstep             ; (the original: RIGHT glide off -> an extra LFO->PWM step)
 @p2e:   jsr eng_refresh
         lda #0
         sta en_phase
@@ -70,17 +70,18 @@ eng_tick:
 @p1:    ldx #1                      ; phase 1
         jsr vx_glide
         jsr lfo_tick2
+        jsr lfo_pwmstep             ; (the original does this step at the end of phase 0)
         jsr eng_refresh
         inc en_phase
         rts
 @p0:    jsr env_tick                ; phase 0
-        jsr lfo_pwmstep
         inc en_phase
         rts
 
-; Static S&H refresh slice: the next 16 slots of cv_pa/cv_pb/cv_mul, skipping the ones the engine writes
-; itself (vx_dyn: envelopes, LFOs, modulated PWM). 32 slots per 3 ticks: every slot within 24.6 ms.
-EREF_N = 16
+; Static S&H refresh slice: the next 12 slots of cv_pa/cv_pb/cv_mul, skipping the ones the engine writes
+; itself (vx_dyn: envelopes, LFOs, modulated PWM). 24 slots per 3 ticks: every slot within 33 ms
+; (stock: voice channels 27.7 ms, other groups 36.9 ms).
+EREF_N = 12
 eng_refresh:
         lda #EREF_N
         sta vx_rcnt
@@ -127,7 +128,8 @@ eng_load_prog:
         lda PERF+PF_KBMODE
         bne @s
         ldx #0
-@s:     lda en_t0
+@s:     stx en_t1                   ; side
+        lda en_t0
         sta PERF+PF_PROG_R,x
         lda edit_lo2,x
         sta en_ptr
@@ -152,19 +154,115 @@ eng_load_prog:
         sta (en_ptr),y
         dey
         bpl @cl
+        ldx en_t1
         jsr eng_apply_prog
         jmp vx_recall               ; like the original recall: envelopes idle, keyboard CV/gate cleared
 edit_lo2:   .byte <EDIT_R, <EDIT_L
 
-; Re-apply both programs (any edit-buffer change).
+; Edit buffer of side X changed (X = 0 RIGHT / 1 LEFT; X >= 2: both). Fast path: only that side (both in
+; WHOLE 8, which shares the RIGHT buffer), mod-matrix untouched, unless the buffer's routing bytes ($00-$05,
+; $1E) differ from what the matrix holds - then everything is re-applied (ap_all, ~9 ms).
 eng_apply_prog:
-        jsr ap_all
-        jmp vx_refresh              ; voices pick up new pitch/Fc/velocity parameters
+        cpx #2
+        bcs @full
+        lda en_shvalid
+        beq @full
+        jsr mod_changed
+        bcs @full
+        stx en_t3                   ; (ap_side uses en_t0-2)
+        jsr cv_lock
+        lda PERF+PF_KBMODE
+        bne @one
+        ldx #0                      ; WHOLE 8: both sides from the RIGHT buffer
+        jsr @side
+        ldx #1
+        jsr @side
+        jmp @done
+@one:   ldx en_t3
+        jsr @side
+@done:  jsr cv_unlock
+        jmp vx_refresh
+@full:  jsr ap_all
+        jsr mod_save
+        jmp vx_refresh
+@side:  jsr ap_side
+        jsr ap_select               ; ap_side's sub-modules may have used en_buf
+        jmp ap_depths               ; bank masks unchanged: only the depth values
+
+; C = 1 when edit buffer X's routing bytes differ from those programmed into the matrix.
+mod_changed:
+        lda edit_lo2,x
+        sta en_ptr
+        lda #>EDIT_R
+        sta en_ptr+1
+        txa
+        asl
+        asl
+        asl
+        tay                         ; shadow offset: side * 8
+        sty en_t0
+        ldy #0
+@l:     lda mod_bytes,y
+        sty en_t1
+        tay
+        lda (en_ptr),y
+        ldy en_t1
+        pha
+        tya
+        clc
+        adc en_t0
+        tay
+        pla
+        cmp en_modsh,y
+        bne @ch
+        ldy en_t1
+        iny
+        cpy #7
+        bne @l
+        clc
+        rts
+@ch:    sec
+        rts
+mod_bytes:  .byte $00, $01, $02, $03, $04, $05, $1e
+
+; Remember both buffers' routing bytes (after a full apply).
+mod_save:
+        ldx #0
+        jsr @buf
+        ldx #1
+@buf:   lda edit_lo2,x
+        sta en_ptr
+        lda #>EDIT_R
+        sta en_ptr+1
+        txa
+        asl
+        asl
+        asl
+        sta en_t0
+        ldy #6
+@l:     sty en_t1
+        lda mod_bytes,y
+        tay
+        lda (en_ptr),y
+        pha
+        lda en_t1
+        clc
+        adc en_t0
+        tay
+        pla
+        sta en_modsh,y
+        ldy en_t1
+        dey
+        bpl @l
+        lda #1
+        sta en_shvalid
+        rts
 
 ; Performance (PERF) changed: keyboard mode, unison, octave, defeats... Re-assign and re-apply.
 eng_apply_perf:
         jsr clk_rate
         jsr vx_apply_perf
+        ldx #2                      ; full apply (matrix, latches, both sides)
         jmp eng_apply_prog
 
 eng_key_on:     jmp vx_key_on       ; A note, Y velocity (keyboard routing by PERF)
@@ -212,7 +310,11 @@ eng_ctrl:
         bcc @st
 @on:    ora PERF+PF_RELDEF
 @st:    sta PERF+PF_RELDEF
-        jmp eng_apply_prog          ; release rates depend on release defeat
+        txa                         ; release rates depend on release defeat: fast path for that side
+        sec                         ; (no matrix rebuild: it would mute the VCAs on every pedal press)
+        sbc #8
+        tax
+        jmp eng_apply_prog
 damp_bit:   .byte $01, $02
 
 ; Write controller CV X (interrupts off or tick context). The A7 bank samples until the next $30xx strobe.
@@ -231,6 +333,16 @@ ctl_out:
         lda #$ff
         sta PIA2_PA
         rts
+
+; AUDIO MUTE: A = 1 mute, 0 unmute. Program volumes go to 0 (the env volume gate writes slots $53/$57 from
+; ap_volbase every phase 0), like the stock $5D flag.
+eng_mute:
+        sta en_mute
+        ldx #0
+        jsr @side
+        ldx #1
+@side:  jsr ap_select
+        jmp ap_volume
 
 ; A440 reference tone on PTM timer 3 (output O3 -> mixer): A = 1 on, 0 off. 2 MHz / (2 x 2273) = 439.9 Hz,
 ; like the stock ($F1B2). Assumes CR2 bit 0 = 0 (CR3 at $6C00), as left by ptm_init. The autotune stops it.

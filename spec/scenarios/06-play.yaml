@@ -1,21 +1,21 @@
 # Performance features on the Normal page.
-- name: hold SPLIT and press a key to set the split point (note name shown)
+- name: hold a key and press SPLIT to set the split point (note name shown)
+  requires: engine              # the engine reports the held key (eng_lowest_held)
   steps:
-    - down: kb_split
-    - key: {note: 48}
-    - up: kb_split
+    - key: {note: 48, hold: true}   # hw: the 8279 reports no key-up, so "hold SPLIT + key" cannot work; stock Rev4 way: hold the key, press SPLIT
+    - press: kb_split
     - expect: {display: "SP  C3", state: {perf: {split: 48, kbMode: split}}, leds: {kb_split: "on"}}
 
 - name: in split mode notes go to the left voices (4-7) or right voices (0-3)
+  requires: engine
   steps:
-    - down: kb_split
-    - key: {note: 60}
-    - up: kb_split
+    - press: kb_split           # hw: no "hold SPLIT + key" (no key-up events); the default split point is C4 (60)
     - key: {note: 40}
     - key: {note: 72}
     - expect: {voices: {4: 40, 0: 72}}
 
 - name: autotune shows progress then oK
+  requires: engine              # progress is drawn by tune_run (blocking)
   steps:
     - press: autotune
     - wait: 130

@@ -416,7 +416,11 @@ export class NeoV8Proto implements Backend {
       case 'kb_layer': p.kbMode = 'layer'; p.uniL = p.uniR = false; return;
       case 'kb_split': {
         p.kbMode = 'split';
-        if (this.keysDown.size) p.split = Math.min(...this.keysDown);
+        if (this.keysDown.size) {
+          // ux-spec §3: pressing SPLIT while holding a key sets the split point there and shows it as a note
+          p.split = Math.min(...this.keysDown);
+          this.flash(`SP  ${this.noteText(p.split)}`);
+        }
         return;
       }
       case 'uni_l': if (p.kbMode !== 'layer') p.uniL = !p.uniL; return;

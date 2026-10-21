@@ -23,7 +23,6 @@ UI_BLINK_T  = 244           ; 500 ms blink period
 UI_BLINK_ON = 146           ; 60 % on
 UI_T_REDRAW = 64            ; periodic render (~130 ms) to follow changes made outside the UI
 
-PTM_T3MSB   = $6C06
 
 ; Weak links: API the UI needs that other modules do not export yet (requested in the UI report).
 .ifndef eng_lowest_held
@@ -32,7 +31,16 @@ eng_lowest_held:                    ; A = lowest held key (MIDI note) or $FF
         rts
 .endif
 .ifndef midi_dump_all
-midi_dump_all:  STUBCALL $2D        ; send the 100 programs as legacy SysEx (blocking)
+midi_dump_all:  STUBCALL $2D        ; A = parts (bit0 programs ...): background SysEx dump
+.endif
+.ifndef midi_rxall                  ; MIDI stub build: the variables the UI reads / writes
+        .pushseg
+        .bss
+midi_rxall:     .res 1
+midi_sxstat:    .res 1
+midi_sxcount:   .res 1
+midi_mon:       .res 3
+        .popseg
 .endif
 .ifndef eng_mute
 eng_mute:       STUBCALL $2C        ; A = 1 mute, 0 unmute (AUDIO MUTE)
@@ -62,7 +70,6 @@ ui_init:
         sta ui_ent
         sta ui_cmp
         sta ui_lt_par
-        sta ui_midimon
         ldx #14
 @p:     sta ui_pprev,x
         dex
@@ -79,7 +86,8 @@ ui_init:
         cmp #100
         bcc @rec
         lda #0
-@rec:   jsr ui_recall_step_n        ; PERF, edit buffers, eng_apply_prog x2, eng_apply_perf
+@rec:   jsr ui_recall_step_n        ; PERF, edit buffers
+        jsr ui_engine               ; eng_apply_perf (applies both programs too)
         jsr ui_now
         lda ui_tn
         sta ui_last
@@ -183,19 +191,15 @@ ui_recall_step:
         jsr ui_recall_step_n
         jmp ui_set_redraw
 
-; a SysEx program was received (to be called by midi): counts in TAPE LOAD / receive mode
-ui_prog_rx:
-        lda ui_mode
-        cmp #UI_RECEIVE
-        bne ui_rts
-        inc ui_rxcnt
+; MIDI: a NeoV8 / UI-level SysEx was handled (globals stored, ...): nothing is cached, just redraw
+ui_sysex_in:
 ui_set_redraw:
         lda #1
         sta ui_redraw
-ui_sysex_in:
 ui_rts: rts
 
 ui_service:
+        jsr ui_engine
         jsr ui_now
         lda ui_tn
         sec
@@ -206,8 +210,9 @@ ui_service:
         lda ui_tn+1
         sta ui_last+1
         lda ui_a
-        beq @flush
-        ; blink phase
+        bne @bl
+        jmp @flush
+@bl:    ; blink phase
         clc
         adc ui_blk
         bcc @b1
@@ -273,6 +278,48 @@ ui_service:
 @f2:    lda panel_dirty
         beq @r
         jsr panel_flush
+@r:     rts
+
+; ================================================================== engine updates
+; The engine re-applies both programs on eng_apply_prog (~30 ms with the real engine), so UI changes only mark
+; what changed and ui_service makes one call per main-loop pass (same pass as the key / pot / MIDI event).
+ui_apply_perf:
+        lda #$80
+        bne ui_apply_set
+; X = side whose edit buffer changed
+ui_apply_prog:
+        lda #1
+        cpx #0
+        beq ui_apply_set
+        asl
+ui_apply_set:
+        ora ui_eng
+        sta ui_eng
+        rts
+
+ui_engine:
+        lda ui_eng
+        beq @r
+        ldx #0
+        stx ui_eng
+        asl
+        bcc @prog
+        jmp eng_apply_perf          ; PERF changed (the engine re-applies the programs too)
+@prog:  lsr
+        lsr
+        bcc @l
+        pha
+        ldx #0
+        jsr eng_apply_prog
+        pla
+        lsr
+        bcc @r
+        ldx #1
+        jmp eng_apply_prog
+@l:     lsr
+        bcc @r
+        ldx #1
+        jmp eng_apply_prog
 @r:     rts
 
 ; ================================================================== time
@@ -565,10 +612,16 @@ ui_touch_tx:
 @a:     cmp #31
         bcc @b
         lda #30
-@b:     ldx #49                     ; x100 ms in ticks
+@b:     ldx #49                     ; x100 ms in ticks: x * 49 * (1 - 1/256) = x * 48.81
         jsr ui_mul8
         lda ui_ml
-        ldx ui_mh
+        sec
+        sbc ui_mh
+        tay
+        lda ui_mh
+        sbc #0
+        tax
+        tya
         ldy #UI_TM_TCH
         jmp ui_timer_set
 
@@ -585,16 +638,9 @@ ui_touch_param:
         lda ui_p_flags,x
         and #7
         beq @nenum
-        tay                         ; enum: "  " + text
-        jsr ui_pget
-        clc
-        adc ui_enum_ofs-1,y
-        asl
-        tay
-        lda ui_enum_txt,y
-        sta ui_tx+4
-        lda ui_enum_txt+1,y
-        sta ui_tx+5
+        ldy #4                      ; enum: "  " + text
+        jsr ui_enum_at
+        ldx ui_lt_par
         jmp @mark
 @nenum: lda ui_p_mask,x
         cmp #1
@@ -695,8 +741,8 @@ ui_edit_btn:
         jmp @chord
 @n4:    cmp #UI_TUNE
         beq @r
-        lda ui_back                 ; menu / confirm / receive: back
-        sta ui_mode
+        jsr ui_pop_mode             ; menu / confirm / receive: back
+        jsr ui_receive_off
         ldx ui_eside
         lda ui_mode
         cmp #UI_EDIT
@@ -713,6 +759,22 @@ ui_edit_btn:
         ldy #UI_TM_CHORD
         jmp ui_timer_set
 @r:     rts
+
+; A = overlay mode (menu, confirm, receive, tune): enter it, remembering where to come back (2 levels,
+; e.g. the menu opened over the SysEx receive page)
+ui_push_mode:
+        ldx ui_back
+        stx ui_back2
+        ldx ui_mode
+        stx ui_back
+        sta ui_mode
+        rts
+ui_pop_mode:
+        lda ui_back
+        sta ui_mode
+        lda ui_back2
+        sta ui_back
+        rts
 
 ; A = digit 1-6, X = side: edit that page (EDIT+digit, A440+digit in EDIT)
 ui_jump_page:

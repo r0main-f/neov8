@@ -20,6 +20,7 @@ en_tdiv6:   .res 1          ; 6-tick divider (stock $2D)
 en_extcnt:  .res 1          ; external clock pulse countdown
 en_mclast:  .res 1          ; MIDI clock: last count seen
 en_mcacc:   .res 1          ; MIDI clock: clocks into the current step
+en_shvalid: .res 1          ; en_modsh holds what the mod matrix was programmed with
 
         .bss
 ; ---- PWM configuration (written by apply, read by env and lfo). Index i = vco2*2 + side (vco2: 1 = VCO2).
@@ -33,6 +34,7 @@ ap_pwm_mul: .res 16         ; per voice: [0..7] VCO1 PWM multiplier, [8..15] VCO
 ap_volbase: .res 2          ; per side: PARAM_EXP[vol*2] >> 1, 0 when muted
 ; ---- mod-bank depth masks per side*4 + bank ($FF on, 0 = all controllers of the bank defeated)
 ap_dmask:   .res 8
+en_modsh:   .res 16         ; routing bytes $00-$05,$1E of EDIT_R (0-6) and EDIT_L (8-14) at the last full apply
 ; ---- MIDI-controller CV bank ($3080-$3087): 0 -X, 1 +X, 2 Fc pedal, 3 pressure, 4 bend LEFT, 6 bend RIGHT
 en_cpa:     .res 8          ; DAC PA (value >> 1)
 en_cpb:     .res 8          ; DAC PB (value bit 0 in bit 7, bend LSB >> 1 below)

@@ -16,11 +16,13 @@ ui_blk:     .res 1          ; blink phase 0..UI_BLINK_T-1
 ui_bon:     .res 1          ; blink phase on (1) / off (0) at the last render
 ui_rtick:   .res 1          ; ticks since the last periodic render
 ui_redraw:  .res 1          ; render at the next ui_service
+ui_eng:     .res 1          ; engine update pending: bit7 perf, bit0 program R, bit1 program L
 ui_dl_lo:   .res 4          ; timer deadlines (UI_TM_*)
 ui_dl_hi:   .res 4
 ; ---- mode
 ui_mode:    .res 1          ; UI_PLAY .. UI_RECEIVE
 ui_back:    .res 1          ; mode to return to from menu / confirm / receive / tune
+ui_back2:   .res 1          ; and the one below it
 ui_page:    .res 1          ; edit page 0-5 (1 2 A B C D)
 ui_eside:   .res 1          ; edited side (0 R, 1 L)
 ui_lastpg:  .res 2          ; last edit page per side
@@ -49,7 +51,7 @@ ui_st_n:    .res 1          ; digits typed
 ui_st_d:    .res 1
 ui_cmp:     .res 1          ; side being compared, $FF none
 ui_cfm:     .res 1          ; confirm: 0 SysEx dump, 1 undo
-ui_rxcnt:   .res 1          ; programs received (TAPE LOAD / SysEx receive)
+ui_rxcnt:   .res 1          ; midi_sxcount when the SysEx receive page opened
 ; ---- edit
 ui_sel:     .res 2          ; keypad selector per var (pwm, lfo): 1 or 2
 ui_lt_par:  .res 1          ; last touched param ($FF none)
@@ -63,7 +65,6 @@ ui_rst:     .res 1          ; menu 99 armed
 ui_item:    .res 1          ; menu item index (table row)
 ui_lastbtn: .res 1
 ui_lastpot: .res 1
-ui_midimon: .res 1          ; last MIDI byte for menu 94 ($FF none) - written by midi (optional)
 ui_tuned:   .res 1          ; an autotune ran since boot
 ; ---- pots
 ui_pprev:   .res 15         ; last value per pot ($FF = unknown)

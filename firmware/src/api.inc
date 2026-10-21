@@ -85,7 +85,8 @@ NV_VERSION  = $5A7C
 NV_GLOBALS  = $5A80         ; 64 B, layout below
 NV_UNDO     = $5AC0         ; undo slot: +0 program number ($FF = empty), +1..40 previous content
 NV_PROGEXT  = $5B00         ; 100 x 4 B per-program NeoV8 extension (reserved)
-NV_END      = $5C90
+NV_STEPEXT  = $5C90         ; 100 x 1 B per-step NeoV8 extension (HOLD, ARP PAUSE, arp octave range: ui/README.md)
+NV_END      = $5CF4
 
 ; NV_GLOBALS offsets (owner: ui; midi reads the MIDI ones)
 G_MIDI_CH_R = 0             ; 0-15
@@ -112,9 +113,10 @@ G_SIZE      = 64
 FW_VERSION_MAJ = 0
 FW_VERSION_MIN = 1
 ; eng:   eng_init  eng_tick (IRQ, every 2.05 ms)  eng_service (main loop)
-;        eng_apply_prog (X = side)   eng_apply_perf   eng_key_on (A note, Y vel)  eng_key_off (A note)
+;        eng_apply_prog (X = side whose edit buffer changed: fast per-side path; X >= 2 = both, full)   eng_apply_perf   eng_key_on (A note, Y vel)  eng_key_off (A note)
 ;        eng_side_on (X side, A note, Y vel)  eng_side_off (X side, A note)  eng_all_off
-;        eng_a440 (A = 1 on / 0 off: 440 Hz reference tone on PTM T3)
+;        eng_a440 (A = 1 on / 0 off: 440 Hz reference tone on PTM T3)  eng_mute (A = 1 mute / 0 unmute)
+;        eng_lowest_held (-> A = lowest key held, MIDI note, or $FF; for "hold a key + SPLIT")
 ;        eng_ctrl (X = 0 -X, 1 +X, 2 Fc pedal, 3 pressure, 4 bend L, 6 bend R: A = value/MSB, Y = bend LSB;
 ;                  X = 8/9 damper R/L: A >= 64 = release defeat on)  eng_compare (X side, A = 1 hear stored / 0 edit buffer)
 ; ui:    ui_init  ui_key (A = button code, X = raw 8279 byte: bit6 = 1 when A440 is up)
