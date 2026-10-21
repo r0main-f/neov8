@@ -61,7 +61,9 @@ cv_mul:     .res 128        ; DAC1022 multiplier ($FF = full scale)
         .include "adc.asm"
         .include "cv.asm"
         .include "fsw.asm"
-        .include "stubs/log.asm"
+.if .defined(STUB_ENG) .or .defined(STUB_MIDI) .or .defined(STUB_UI) .or .defined(STUB_TUNE) .or .defined(STUB_VX) .or .defined(STUB_ENV) .or .defined(STUB_LFO) .or .defined(STUB_SEQ)
+        .include "stubs/log.asm"     ; call log for the module stubs (test benches only)
+.endif
 .ifdef STUB_ENG
         .include "stubs/eng.asm"
 .else

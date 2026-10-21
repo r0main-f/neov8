@@ -12,6 +12,12 @@ midi_d0:    .res 1          ; first data byte
 midi_d1:    .res 1          ; second data byte
 midi_vec:   .res 2          ; per-side call vector (midi_eachv)
 
+; ---- hot variables moved from BSS (ROM review: 1 byte saved per access)
+midi_insx:  .res 1          ; inside a SysEx message
+midi_sxlen: .res 1          ; bytes in midi_sxbuf (public, with midi_sxbuf)
+midi_nrpn:  .res 2          ; selected NRPN: MSB (side), LSB (program byte); MSB $7F = none
+midi_side:  .res 1
+
         .bss
 ; ---- public (read by UI / engine / tests)
 midi_rxovr: .res 1          ; bytes dropped because the RX ring was full (wraps)
@@ -29,14 +35,10 @@ midi_mon:   .res 3          ; last channel message received: status, data1, data
 midi_dmask: .res 1          ; background dump parts left: bit0 programs, bit1 steps, bit2 globals, bit3 taper block
 midi_dnum:  .res 1          ; background dump: next program / step number
 ; ---- private
-midi_insx:  .res 1          ; inside a SysEx message
-midi_sxlen: .res 1          ; bytes in midi_sxbuf (public, with midi_sxbuf)
 midi_sxovf: .res 1          ; SysEx longer than MIDI_SXMAX: dropped at EOX
-midi_nrpn:  .res 2          ; selected NRPN: MSB (side), LSB (program byte); MSB $7F = none
 midi_dmsb:  .res 1          ; last data entry MSB
 midi_mask:  .res 1          ; sides addressed by the current channel message (bit0 R, bit1 L)
 midi_smask: .res 1          ; sides left for midi_eachv
-midi_side:  .res 1
 midi_dir:   .res 1          ; nibble copy direction (+1 / -1)
 midi_kind:  .res 1          ; 0 program, 1 step
 midi_num:   .res 1

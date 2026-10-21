@@ -97,22 +97,6 @@ panel_hexdigit:
 @n:     adc #'0'
         rts
 
-; Show A as two hex digits at digits Y, Y+1.
-panel_hex2:
-        pha
-        lsr
-        lsr
-        lsr
-        lsr
-        jsr panel_hexdigit
-        jsr panel_putc
-        pla
-        jsr panel_hexdigit
-        iny
-        jsr panel_putc
-        dey
-        rts
-
 ; Set (C=1) or clear (C=0) LED bit X of display byte Y (Y = 0, 3, 6 or 9).
 panel_led:
         lda panel_bitmask,x

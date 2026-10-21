@@ -29,14 +29,6 @@ cv_unlock:
 @p:     plp
 @r:     rts
 
-; Store a 14-bit value for slot X: A = bits 13-7 (0-127), Y = bits 6-0 (0-127). Refreshed by the tick.
-cv_set:
-        sta cv_pa,x
-        tya
-        asl
-        sta cv_pb,x
-        rts
-
 ; Write slot X now (A = PA byte, Y = PB byte, mul[X] as multiplier) and remember it. Tick context only
 ; (or with the DAC locked).
 cv_write:

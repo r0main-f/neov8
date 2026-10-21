@@ -53,14 +53,6 @@ ui_code_left:
 @y:     sec
         rts
 
-; X = side -> A = side bit (1 R, 2 L)
-ui_sidebit:
-        lda #1
-        cpx #0
-        beq @r
-        asl
-@r:     rts
-
 ui_pk_call:
         jsr ui_code_left
         lda #0

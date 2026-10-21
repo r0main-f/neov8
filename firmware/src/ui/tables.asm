@@ -4,10 +4,10 @@
 ui_s_cancel:    .byte "CAnCEL"
 ui_s_reset:     .byte "rESEt?"
 ui_s_clear:     .byte "CLEAr "
-ui_s_recon:     .byte "rEC On"
 ui_s_erase:     .byte "ErASE?"
 ui_s_erased:    .byte "ErASEd"
 ui_s_sqst:      .byte "nodAtA", "SEL  ?", "SOnG 2", "rEC On", "FULL  "   ; seq_status 1-5
+ui_s_recon = ui_s_sqst+18
 ui_s_tuneok:    .byte "tU  oK"
 ui_s_none:      .byte "--  --"
 ui_s_rgno:      .byte "rG  no"
@@ -18,9 +18,9 @@ ui_s_stored:    .byte "StOrEd"
 ui_s_protec:    .byte "PrOtEC"
 ui_s_sent:      .byte "SEnt  "
 ui_s_undone:    .byte "UndOnE"
+ui_s_undo = ui_s_undone                ; "UndO" (4 chars)
 ui_s_send:      .byte "SEnd ?"
 ui_s_init:      .byte "InIt"
-ui_s_undo:      .byte "UndO"
 
 ui_s_div:       .byte "   4", "   8", "  8t", "  16", " 16t", "  32", " 32t", "  64"   ; MIDI-clock arp divisions
 ui_side_ch:     .byte "rL"          ; side 0 RIGHT, 1 LEFT

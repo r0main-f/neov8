@@ -20,12 +20,14 @@ NeoV8 code is new; it reproduces the original's behaviour, verified in the emula
 
 1. **Naming.** One translation unit, so every global label is visible everywhere. Public routines and
    variables carry their module prefix: `eng_key_on`, `ui_key`, `midi_poll`, `tune_run`, `panel_text`,
-   `cv_set`. Inside a routine use cheap local labels (`@loop`). Wrap bigger private helpers in
+   `cv_write`. Inside a routine use cheap local labels (`@loop`). Wrap bigger private helpers in
    `.proc name ... .endproc` (their labels become `name::x`) or prefix them too (`ui_menu_draw`).
 2. **Variables** live in the module's vars file (`eng/vars.inc`, `ui/vars.inc`, `midi_vars.inc`,
    `tune_vars.inc`), included by `main.s` *before any code*, so ca65 knows zero-page symbols when they
-   are used (forward references to zero page assemble as absolute and break `(zp),y`). Budget of zero
-   page: core 24, eng 112 (sequencer 8 of them), ui 40, midi 16, tune 24 bytes. Page-aligned tables go in segment
+   are used (forward references to zero page assemble as absolute and break `(zp),y`). Zero page in use
+   (after the ROM review moved the most-accessed variables there, 1 byte saved per access): core 19, eng 102
+   (sequencer 21 of them), ui 43, midi 15, tune 21 = 200 of 254 bytes; 54 free. Give new zero page to the
+   variables with the most absolute accesses. Page-aligned tables go in segment
    `PAGE` (v8.cfg: first in ROM, no alignment padding inside CODE). BSS areas: `BSS` $0200-$07FF, `BSS2`
    $0A00-$0DFF, `BSS3` $1000-$1FFF (not cleared at reset). Shared temporaries `tmp`, `tmp2`, `ptr`, `ptr2`
    (core) may be used freely between calls; the IRQ saves `tmp`, `tmp2`, `ptr`.

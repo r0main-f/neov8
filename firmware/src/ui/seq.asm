@@ -512,7 +512,7 @@ ui_sq_mn:       .byte "bPnbqUS1CLrt"
 ui_sq_beatv:    .byte 4, 8, 16
 ui_sq_ratev:    .byte 96, 48, 24
 ui_sq_qn:       .byte " --", " 64", "32t", " 32", "16t", " 16", " 8t", "  8", " 4t", "  4", " 2t"
-ui_sq_clkn:     .byte "InEHnI"
+ui_sq_clkn = ui_mtxt+26               ; "InEHnI" (menu texts)
 
 ; ---------------------------------------------------------------- display: mode + tempo (free events while
 ; recording); the mode blinks while recording waits for the first key
