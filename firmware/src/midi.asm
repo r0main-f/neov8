@@ -209,7 +209,6 @@ midi_cc_out:
 midi_nrpn_out:
         sta midi_num
         sty midi_side
-        lda #99
         txa
         tay                         ; NRPN MSB = side
         lda #99
@@ -766,8 +765,6 @@ midi_cc:
         beq midi_nrpn_cc
         dex
         bpl @n
-        ldx NV_GLOBALS+G_RX
-        cpx #$10                    ; (bit test below)
         lda NV_GLOBALS+G_RX
         and #$10
         beq @r
@@ -866,18 +863,20 @@ midi_sx_end:
         lda #0
         sta midi_insx
         lda midi_sxovf
-        bne @r
+        bne @r0
         lda midi_sxlen
         cmp #2
-        bcc @r
+        bcc @r0
         lda midi_sxbuf
         cmp #$7e
         beq midi_sx_univ
         cmp #MIDI_OP_ID
-        bne @r
+        bne @r0
         lda NV_GLOBALS+G_RX         ; Rev4 "MX": every ID-3 message needs it
         and #$08
-        beq @r
+        bne @mx
+@r0:    rts
+@mx:
         lda midi_sxbuf+1
         and #$3f
         cmp #13

@@ -11,6 +11,7 @@ en_ptr:     .res 2
 en_phase:   .res 1          ; 3-phase round robin of the control tick
 en_pwmalt:  .res 1          ; alternates LFO->PWM VCO1 / VCO2 in phase 0
 en_mute:    .res 1          ; AUDIO MUTE: program volume 0
+en_cidx:    .res 1          ; MIDI-controller CV refresh position
 
         .bss
 ; ---- PWM configuration (written by apply, read by env and lfo). Index i = vco2*2 + side (vco2: 1 = VCO2).
@@ -24,6 +25,9 @@ ap_pwm_mul: .res 16         ; per voice: [0..7] VCO1 PWM multiplier, [8..15] VCO
 ap_volbase: .res 2          ; per side: PARAM_EXP[vol*2] >> 1, 0 when muted
 ; ---- mod-bank depth masks per side*4 + bank ($FF on, 0 = all controllers of the bank defeated)
 ap_dmask:   .res 8
+; ---- MIDI-controller CV bank ($3080-$3087): 0 -X, 1 +X, 2 Fc pedal, 3 pressure, 4 bend LEFT, 6 bend RIGHT
+en_cpa:     .res 8          ; DAC PA (value >> 1)
+en_cpb:     .res 8          ; DAC PB (value bit 0 in bit 7, bend LSB >> 1 below)
 
         .include "eng/vars_voice.inc"
         .include "eng/vars_env.inc"

@@ -30,6 +30,7 @@ eng_init:
         sta PERF+PF_ARP_OCT_L
         lda #60
         sta PERF+PF_SPLIT
+        jsr ctl_init
         jsr vx_init
         jsr env_init
         jsr lfo_init
@@ -38,6 +39,12 @@ eng_init:
 ; Control tick (IRQ context, interrupts enabled, never re-entered). Same 3-phase plan as the original.
 eng_tick:
         jsr cv_refresh
+        ldx en_cidx                 ; one MIDI-controller CV per tick (all 8 every 16 ms)
+        jsr ctl_out
+        inx
+        txa
+        and #7
+        sta en_cidx
         jsr vx_tick                 ; VPK-5 scan, key events
         ldx en_phase
         beq @p0
@@ -117,8 +124,75 @@ eng_side_on:    jmp vx_side_on      ; X side, A note, Y velocity (MIDI)
 eng_side_off:   jmp vx_side_off
 eng_all_off:    jmp vx_all_off
 
-; MIDI controller CV X (0-7) = A (0-127): the $3080-$3087 bank (bend, mod, pressure...). TODO with the MIDI module.
+; MIDI controllers (docs/midi-implementation.md). X = 0 -X, 1 +X, 2 Fc pedal, 3 pressure, 4 bend LEFT,
+; 6 bend RIGHT: CV bank $3080+X, A = value / bend MSB (0-127), Y = bend LSB. As the stock ($9D7C, $CF1A):
+; PA = A >> 1, PB = (A & 1) << 7 | LSB >> 1; multiplier $FF (0-3) or the pitch-bend sensitivity (4-7).
+; X = 8 / 9: damper RIGHT / LEFT (A >= 64 on) = release defeat, like the stock's "damper enable".
 eng_ctrl:
+        cpx #8
+        bcs @damper
+        pha
+        lsr
+        sta en_cpa,x
+        pla
+        and #1
+        lsr
+        ror                         ; bit 0 -> bit 7
+        sta en_cpb,x
+        cpx #4
+        bcc @w
+        tya
+        lsr
+        ora en_cpb,x
+        sta en_cpb,x
+@w:     php
+        sei
+        jsr ctl_out
+        plp
+        rts
+@damper:
+        pha
+        lda damp_bit-8,x
+        tay
+        pla
+        cmp #64
+        tya
+        bcs @on
+        eor #$ff
+        and PERF+PF_RELDEF
+        bcc @st
+@on:    ora PERF+PF_RELDEF
+@st:    sta PERF+PF_RELDEF
+        jmp eng_apply_prog          ; release rates depend on release defeat
+damp_bit:   .byte $01, $02
+
+; Write controller CV X (interrupts off or tick context). The A7 bank samples until the next $30xx strobe.
+ctl_out:
+        lda en_cpa,x
+        sta PIA1_PA
+        lda en_cpb,x
+        sta PIA1_PB
+        lda #$ff
+        cpx #4
+        bcc @m
+        lda BRAM_PBSENS
+@m:     sta PIA2_PA
+        sta SH_SLOT,x
+        sta SH_MIDICV,x
+        lda #$ff
+        sta PIA2_PA
+        rts
+
+ctl_init:
+        ldx #7
+@l:     lda #0
+        sta en_cpb,x
+        cpx #4
+        bcc @z
+        lda #$20                    ; bends centred
+@z:     sta en_cpa,x
+        dex
+        bpl @l
         rts
 
 ; Compare: X side, A = 1 hear the stored program, 0 the edit buffer. The UI swaps buffers itself and calls

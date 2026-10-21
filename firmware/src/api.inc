@@ -76,6 +76,7 @@ BRAM_CLIP   = $5A20         ; velocity clip points (lower $5A20-23, upper $5A24-
 BRAM_TAPER  = $5A28         ; user velocity taper, 15 B
 BRAM_FSW    = $5A46         ; footswitch config 6 x 3 B, magic $A5 at $5A58
 BRAM_FSW_MAGIC = $5A58
+BRAM_PBSENS = $5A79         ; MIDI pitch-bend sensitivity (DAC1022 multiplier of the bend CVs), stock-compatible
 ; NeoV8 extension block: $5A7A-$5FFF is never touched by the stock ROM (docs/rev4-ram-map.md)
 NV_MAGIC    = $5A7A         ; "N8"
 NV_VERSION  = $5A7C
@@ -106,12 +107,22 @@ G_SIZE      = 64
 
 ; ============================================================== module API (global labels with module prefix)
 ; core:  panel_*, adc_read, cv_*            (main.s, panel.asm, adc.asm, cv.asm)
+FW_VERSION_MAJ = 0
+FW_VERSION_MIN = 1
 ; eng:   eng_init  eng_tick (IRQ, every 2.05 ms)  eng_service (main loop)
 ;        eng_apply_prog (X = side)   eng_apply_perf   eng_key_on (A note, Y vel)  eng_key_off (A note)
 ;        eng_side_on (X side, A note, Y vel)  eng_side_off (X side, A note)  eng_all_off
-;        eng_ctrl (X = MIDI CV 0-7, A = 0-127)  eng_compare (X side, A = 1 hear stored / 0 edit buffer)
+;        eng_ctrl (X = 0 -X, 1 +X, 2 Fc pedal, 3 pressure, 4 bend L, 6 bend R: A = value/MSB, Y = bend LSB;
+;                  X = 8/9 damper R/L: A >= 64 = release defeat on)  eng_compare (X side, A = 1 hear stored / 0 edit buffer)
 ; ui:    ui_init  ui_key (A = button code, X = raw 8279 byte: bit6 = 1 when A440 is up)
 ;        ui_pot (X = pot index 0-14, A = 0-127)  ui_service (main loop)  ui_recall_prog (X side, A num)
 ;        ui_recall_step (A num)  ui_sysex_in (complete legacy/NeoV8 SysEx in midi_sxbuf)
-; midi:  midi_init  midi_nmi  midi_poll (main loop)  midi_tx (A byte)  midi_note_out (X side, A note, Y vel; Y=0 off)
+; midi:  midi_init  midi_nmi  midi_poll (main loop)  midi_tx (A byte, X/Y kept)  midi_note_out (X side, A note, Y vel; Y=0 off)
+;        midi_pc_out (X side, A num)  midi_cc_out (X side, A cc, Y val)  midi_nrpn_out (X side, A byte, Y raw value)
+;        midi_sx_event (A cmd, X data or $FF)  midi_dump_all (A parts: bit0 programs, 1 steps, 2 globals, 3 taper/fsw block)
+;        vars: midi_clock (16-bit, 24 ppqn ticks)  midi_rtflags (bit0 start, 1 continue, 2 stop; consumer clears)
+;        midi_kbd_off (SysEx cmd 3)  midi_rxall (set by the UI's SYSEX RECEIVE page: accept data without the
+;        controller flag)  midi_sxstat (0 ok, 1 protected, 2 malformed)  midi_sxcount  midi_mon (3 B)  midi_sxbuf/len
+;        midi_rxovr midi_hwovr midi_txdrop (error counters). Details: docs/midi-implementation.md.
+;        NV_GLOBALS must be initialised (defaults + NV_MAGIC) by ui_init: MIDI reads the globals directly.
 ; tune:  tune_restore (boot: battery tables -> CAL + trim CVs)  tune_run (AUTO TUNE, blocking, SEI inside)

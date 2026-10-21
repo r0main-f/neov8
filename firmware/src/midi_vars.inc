@@ -28,7 +28,7 @@ midi_dmask: .res 1          ; background dump parts left: bit0 programs, bit1 st
 midi_dnum:  .res 1          ; background dump: next program / step number
 ; ---- private
 midi_insx:  .res 1          ; inside a SysEx message
-midi_sxlen: .res 1          ; bytes in midi_sxbuf
+midi_sxlen: .res 1          ; bytes in midi_sxbuf (public, with midi_sxbuf)
 midi_sxovf: .res 1          ; SysEx longer than MIDI_SXMAX: dropped at EOX
 midi_nrpn:  .res 2          ; selected NRPN: MSB (side), LSB (program byte); MSB $7F = none
 midi_dmsb:  .res 1          ; last data entry MSB
