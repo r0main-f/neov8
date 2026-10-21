@@ -1,0 +1,106 @@
+# Polysequencer page (docs/ux-spec.md §6c). Engine behaviour (event timing, playback through the voices) is
+# proven against the stock ROM in sim/test/fw-eng-seq.test.ts; these scenarios fix the page's UI.
+- name: A440+ARP RIGHT opens the sequencer page, EDIT leaves it
+  requires: seq-page
+  steps:
+    - press: [a440, arp_right]
+    - expect: {mode: seq, display: "-- 120", leds: {edit: "on", arp_pause: "off"}}
+    - press: edit
+    - expect: {mode: play}
+
+- name: START/STOP explains what is missing instead of failing silently
+  requires: seq-page
+  steps:
+    - press: [a440, arp_right]
+    - press: arp_pause
+    - expect: {display: "SEL  ?"}
+    - wait: 1500
+    - press: reldef_l                 # PLAY 1, but nothing recorded yet
+    - press: arp_pause
+    - expect: {display: "nodAtA", leds: {reldef_l: "on"}}
+
+- name: record channel 1 - waits for the first key, counts free events, stops
+  requires: seq-page
+  steps:
+    - press: [a440, arp_right]
+    - press: pbdef_l                  # REC 1
+    - press: arp_pause
+    - expect: {display: "rE 120", displayBlink: "110000", leds: {pbdef_l: "on", arp_pause: blink}}
+    - key: {note: 60}
+    - expect: {display: "rE1698", leds: {arp_pause: "on"}}
+    - press: arp_pause
+    - expect: {display: "-- 120", state: {seq: {running: false, events: [2, 0]}}}
+
+- name: tempo by digits, FWD/REV and the SPEED knob
+  requires: seq-page
+  steps:
+    - press: [a440, arp_right]
+    - press: call_r
+    - press: k0
+    - press: k9
+    - press: k0
+    - expect: {display: "bP  90", state: {seq: {tempo: 90}}}
+    - press: fwd
+    - expect: {display: "bP  91"}
+    - pot: {arp_speed: 1023}
+    - expect: {display: "bP 251"}
+
+- name: quantize and metronome beat
+  requires: seq-page
+  steps:
+    - press: [a440, arp_right]
+    - press: oct_l
+    - expect: {display: "qU  --"}
+    - press: k5
+    - expect: {display: "qU  16", state: {seq: {quant: 5}}}
+    - press: call_l
+    - press: k1
+    - expect: {display: "nb   8"}
+
+- name: song mode needs both channels
+  requires: seq-page
+  steps:
+    - press: [a440, arp_right]
+    - press: pbdef_l
+    - press: arp_pause
+    - key: {note: 62}
+    - press: arp_pause
+    - press: pbdef_l                  # REC 1 off
+    - press: kb_whole                 # SONG
+    - press: reldef_l
+    - press: arp_pause
+    - expect: {display: "SOnG 2", leds: {kb_whole: "on"}}
+
+- name: CLEAR switches everything off; A440+ARP LEFT erases the data after confirmation
+  requires: seq-page
+  steps:
+    - press: [a440, arp_right]
+    - press: pbdef_l
+    - press: arp_pause
+    - key: {note: 64}
+    - press: arp_pause
+    - press: hold_l
+    - press: arp_left
+    - expect: {display: "CLEAr ", leds: {pbdef_l: "off", hold_l: "off"}}
+    - wait: 1500
+    - press: [a440, arp_left]
+    - expect: {display: "ErASE?"}
+    - press: store
+    - expect: {display: "ErASEd", state: {seq: {events: [0, 0]}}}
+
+- name: A440+ARP PAUSE starts and stops the sequencer from the Normal page
+  requires: seq-page
+  steps:
+    - press: [a440, arp_right]
+    - press: pbdef_l
+    - press: arp_pause
+    - key: {note: 60}
+    - press: arp_pause
+    - press: pbdef_l
+    - press: reldef_l                 # PLAY 1
+    - press: hold_l                   # LOOP
+    - press: edit                     # back to the Normal page
+    - press: [a440, arp_pause]
+    - expect: {mode: play, state: {seq: {running: true, mode: PL}}}
+    - press: [a440, arp_pause]
+    - expect: {state: {seq: {running: false}}}

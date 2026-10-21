@@ -12,9 +12,9 @@ export interface Overlay {
 }
 
 const NORMAL_SHIFT: Partial<Record<ButtonId, string>> = {
-  call_l: 'INIT L', call_r: 'INIT R', edit: 'SYSTEM', store: 'COMPARE/UNDO',
+  call_l: 'INIT L', call_r: 'INIT R', edit: 'SYSTEM', store: 'COMPARE/UNDO', arp_pause: 'SEQ START',
   oct_l: 'ARP OCT', oct_r: 'ARP OCT', autotune: 'A440 TONE', arp_down: 'MIDI ▸10',
-  arp_random: 'SET ▸40', step_enable: 'ALT ▸50', mute: 'VEL ▸21', arp_right: 'SEQ',
+  arp_random: 'SET ▸40', step_enable: 'ALT ▸50', mute: 'VEL ▸21', arp_right: 'SEQUENCER',
 };
 
 export function overlayFor(mode: string, pageId: string | null, neo: boolean): Overlay {
@@ -48,6 +48,21 @@ export function overlayFor(mode: string, pageId: string | null, neo: boolean): O
     }
     const shift: Overlay['shift'] = neo ? { store: 'COMPARE', fwd: 'VALUE +1', rev: 'VALUE -1', edit: 'SYSTEM', call_l: 'INIT L', call_r: 'INIT R' } : {};
     return { banner: `${pg.title}${neo ? '   ·   EDIT+1..6 jumps to a page' : ''}`, buttons, shift, pots };
+  }
+  if (mode === 'seq') {
+    for (const b of BUTTONS_GEO) buttons[b.id] = /^k\d$/.test(b.id) ? b.label : '';
+    for (const p of POTS_GEO) pots[p.id] = p.id === 'arp_speed' ? 'TEMPO' : p.label;
+    Object.assign(buttons, {
+      reldef_l: 'PLAY 1', reldef_r: 'PLAY 2', pbdef_l: 'REC 1', pbdef_r: 'REC 2', hold_l: 'LOOP', hold_r: 'LOCK',
+      arp_pause: 'START/STOP', arp_left: 'CLEAR', arp_down: 'INSTANT REC', arp_random: 'METRONOME', arp_up: 'CLOCK SRC',
+      arp_right: 'EXIT', kb_whole: 'SONG', kb_split: 'SONG REPEATS', kb_layer: 'EXT 96', uni_l: 'EXT 48', uni_r: 'EXT 24',
+      call_r: 'TEMPO', call_l: 'MET BEAT', oct_l: 'QUANTIZE', edit: 'EXIT', fwd: 'VALUE +', rev: 'VALUE -',
+      tape_dump: 'SYSEX DUMP', tape_load: 'SYSEX RCV', a440: 'SHIFT', mute: 'AUDIO MUTE',
+    });
+    return {
+      banner: 'POLYSEQUENCER  ·  PLAY/REC/LOOP/LOCK then START/STOP  ·  EDIT exits',
+      buttons, shift: { arp_left: 'ERASE' }, pots,
+    };
   }
   if (mode === 'menu') {
     for (const b of BUTTONS_GEO) buttons[b.id] = /^k\d$/.test(b.id) ? b.label : '';

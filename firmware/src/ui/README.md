@@ -11,6 +11,7 @@ Tests: `sim/test/fw-ui.test.ts`. It runs every scenario on the ROM and runs a se
 | `edit.asm` | EDIT pages: bindings, keypad, nudge, pot modes (pickup / jump / relative, coarse12 / fine12 / fine) |
 | `menu.asm` | SYSTEM menu (table `ui_menu_tab`) |
 | `store.asm` | programs/steps in battery RAM, store flow, compare, undo, memory-protect probe, step pack/unpack, NV init |
+| `seq.asm` | polysequencer page (A440+ARP RIGHT): switches → `seq_*` (api.inc contract), tempo / beat / quantize / song fields, A440+ARP PAUSE start/stop, erase confirm, debug block `$0FE0-$0FE7` + `$0FEC-$0FEF` |
 | `render.asm` | display + LEDs + blink → `panel_disp`, debug block |
 | `tables.asm` | LED map, texts, step-format tables, global defaults |
 | `gen_tables.inc` | **generated** by `tools/gen-ui-tables.mjs` from `spec/params.yaml` + `spec/pages.yaml` (through `sim/src/gen/params.ts`) and `NULL_PROGRAM_IMAGE` |

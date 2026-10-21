@@ -3,7 +3,11 @@
 ; ---- messages (6 chars)
 ui_s_cancel:    .byte "CAnCEL"
 ui_s_reset:     .byte "rESEt?"
-ui_s_seq:       .byte "SEq --"
+ui_s_clear:     .byte "CLEAr "
+ui_s_recon:     .byte "rEC On"
+ui_s_erase:     .byte "ErASE?"
+ui_s_erased:    .byte "ErASEd"
+ui_s_sqst:      .byte "nodAtA", "SEL  ?", "SOnG 2", "rEC On", "FULL  "   ; seq_status 1-5
 ui_s_tuneok:    .byte "tU  oK"
 ui_s_none:      .byte "--  --"
 ui_s_rgno:      .byte "rG  no"

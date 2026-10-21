@@ -337,6 +337,15 @@ ui_confirm_key:
         bne @r
         jsr ui_pop_mode
         lda ui_cfm
+        cmp #2
+        bne @n2
+        lda seq_rec                 ; sequencer: erase the REC channels (none selected: both)
+        bne @er
+        lda #3
+@er:    jsr seq_erase
+        UIFLASH ui_s_erased, 0
+        rts
+@n2:    cmp #0
         bne @undo
         lda #1                      ; TAPE DUMP = SysEx dump of the 100 programs (runs in the background)
         jsr midi_dump_all

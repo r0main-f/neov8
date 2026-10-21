@@ -329,13 +329,15 @@ ui_pk_arpl:
 ui_pk_arpr:
         lda ui_sh
         beq @f
-        UIFLASH ui_s_seq, 0         ; A440+ARP RIGHT: sequencer (not in this version)
-        rts
+        jmp ui_seq_enter            ; A440+ARP RIGHT: sequencer page
 @f:     lda #PF_ARP_ON
         jmp ui_toggle_side
 
 ui_pk_pause:
-        lda PERF+PF_ARP_PAUSE
+        lda ui_sh
+        beq @f
+        jmp ui_seq_startstop        ; A440+ARP PAUSE: sequencer START/STOP from the Normal page
+@f:     lda PERF+PF_ARP_PAUSE
         eor #1
         sta PERF+PF_ARP_PAUSE
         jmp ui_apply_perf

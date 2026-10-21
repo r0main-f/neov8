@@ -122,6 +122,35 @@ EDIT leaves. Values marked *step* belong to the performance and are saved with S
 | 91 – 95 | bt Pt dt nn tu | button test · pot raw · display test · MIDI monitor · autotune report | |
 | 99 | rG | reset globals (patches untouched): set `YE`, press STORE | no/YE |
 
+## 6c. Polysequencer page (A440 + ARP RIGHT; EDIT or ARP RIGHT leaves)
+
+The engine is the Rev4 sequencer, behaving exactly like the original (2 channels, 850 events each or 1700 when
+both are recorded together, loop, lock/bounce, overdub, song, quantize, metronome, internal / external clock).
+The page keeps the Rev4 button positions; what changes is that every state is visible and nothing fails silently.
+
+| Control | Function |
+|---|---|
+| REL DEF L / R | PLAY 1 / PLAY 2 (LED) |
+| PB DEF L / R | REC 1 / REC 2 (LED) |
+| HOLD L / R | LOOP / LOCK (LED) |
+| ARP PAUSE | START / STOP (LED on while running, blinking while a recording waits for its first key) |
+| ARP LEFT | CLEAR: all switches off, stop. **A440 + ARP LEFT**: erase the recorded data (`ErASE?`, STORE confirms) |
+| ARP DOWN | INSTANT RECORD (start on START instead of on the first key) |
+| ARP RANDOM | METRONOME on/off (was EDIT on Rev4: EDIT now leaves the page) |
+| ARP UP | clock source: `CL In` internal / `EH` external SEQ CK IN / `nI` MIDI clock (NeoV8) |
+| LAYER / UNISON L / R | external clock rate 96 / 48 / 24 per quarter |
+| WHOLE 8 | SONG on/off; **SPLIT**: song repeats, 4 digits (`S1 0305` = channel 1 three times, channel 2 five times) |
+| CALL R / CALL L / OCTAVE L | value field: tempo `bP` (20–251), metronome beat `nb` (4 / 8 / 16), quantize `qU` (`--` … `2t`) |
+| digits, FWD / REV | edit the selected field; the **SPEED knob** always sets the tempo |
+| TAPE DUMP / LOAD | send / receive the sequences as SysEx |
+| A440 + ARP PAUSE (Normal page) | START / STOP without opening the page (live use) |
+
+Display: LEFT = state `--` stopped, `PL` playing, `rE` recording (blinks while waiting for the first key), `Od`
+overdub, `Sn` song; RIGHT+STEP = tempo, or the free events while recording. Refusals are messages: `SEL  ?`
+(nothing selected), `nodAtA`, `SOnG 2` (song needs both channels), `rEC On` (song while recording), `FULL`.
+Rev4 problems removed: ARP PAUSE no longer turns into START/STOP on the Normal page; quantize cannot be changed
+while recording; sequences are sent over SysEx instead of tape. Sequences live in volatile RAM, as on Rev4.
+
 ## 6b. Hardware constraints that shaped the UI (found while porting it to the firmware)
 
 * **The 8279 reports key presses only, never releases.** A440 works as SHIFT because it is wired to the 8279

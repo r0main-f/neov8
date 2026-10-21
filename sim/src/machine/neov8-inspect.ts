@@ -12,7 +12,10 @@ export const EDIT_R = 0x0800;
 export const EDIT_L = 0x0840;
 const NV_GLOBALS = 0x1a80; // battery offset of $5A80
 const NV_UNDO = 0x1ac0; // $5AC0
-const MODES = ['play', 'edit', 'menu', 'tune', 'confirm', 'receive'];
+const MODES = ['play', 'edit', 'menu', 'tune', 'confirm', 'receive', 'seq'];
+/** sequencer debug block written by the UI (firmware/src/ui/seq.asm SQD_*) */
+const SQD = 0x0fe0;
+const SQD_LEN = 0x0fec;
 const PAGES = ['P1', 'P2', 'A', 'B', 'C', 'D'];
 const KB = ['whole', 'split', 'layer'];
 const ARP = ['down', 'random', 'up', 'updown'];
@@ -134,6 +137,22 @@ export function neoInspect(m: Machine): Record<string, unknown> {
       arpClock: ['int', 'ext', 'midi'][G(11)], steal: G(12) ? 'none' : 'oldest', uniDetune: G(13),
       voiceMask: P(27), // NeoV8 keeps the voice-disable mask in the step (stock byte 22), not in the globals
     },
+    seq: neoSeq(m),
     renders: d[31],
+  };
+}
+
+/** Sequencer state in the prototype's inspect().seq shape. len = events per channel (the firmware keeps no tick length). */
+export function neoSeq(m: Machine) {
+  const r = m.ram;
+  const md = r[SQD];
+  const sw = r[SQD + 1];
+  const running = !!(md & 0x80);
+  const mode = !running ? '--' : md & 4 ? 'rE' : (md & 3) === 3 ? 'Od' : md & 2 ? 'rE' : md & 8 ? 'Sn' : 'PL';
+  const w = (a: number) => r[a] | (r[a + 1] << 8);
+  const events = [w(SQD_LEN), w(SQD_LEN + 2)];
+  return {
+    mode, running, play: sw & 3, rec: (sw >> 2) & 3, loop: !!(sw & 16), lock: !!(sw & 32), song: !!(sw & 64),
+    tempo: r[SQD + 2], quant: r[SQD + 3], free: w(SQD + 4), status: r[SQD + 6], len: events, events,
   };
 }

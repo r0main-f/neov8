@@ -9,6 +9,7 @@ UI_MENU     = 2
 UI_TUNE     = 3
 UI_CONFIRM  = 4
 UI_RECEIVE  = 5
+UI_SEQ      = 6             ; polysequencer page (ui/seq.asm)
 
 UI_TM_ENT   = 0             ; timers
 UI_TM_TCH   = 1
@@ -140,8 +141,8 @@ ui_key:
         lda ui_modekey_lo,x
         pha
         rts
-ui_modekey_lo:  .byte <(ui_play_key-1), <(ui_edit_key-1), <(ui_menu_key-1), <(ui_rts-1), <(ui_confirm_key-1), <(ui_receive_key-1)
-ui_modekey_hi:  .byte >(ui_play_key-1), >(ui_edit_key-1), >(ui_menu_key-1), >(ui_rts-1), >(ui_confirm_key-1), >(ui_receive_key-1)
+ui_modekey_lo:  .byte <(ui_play_key-1), <(ui_edit_key-1), <(ui_menu_key-1), <(ui_rts-1), <(ui_confirm_key-1), <(ui_receive_key-1), <(ui_seq_key-1)
+ui_modekey_hi:  .byte >(ui_play_key-1), >(ui_edit_key-1), >(ui_menu_key-1), >(ui_rts-1), >(ui_confirm_key-1), >(ui_receive_key-1), >(ui_seq_key-1)
 
 ; X = pot index 0-14, A = 0-127
 ui_pot:
@@ -168,7 +169,10 @@ ui_pot:
 @m1:    cmp #UI_EDIT
         bne @m2
         jmp ui_edit_pot
-@m2:    cmp #UI_PLAY
+@m2:    cmp #UI_SEQ
+        bne @m3
+        jmp ui_seq_pot
+@m3:    cmp #UI_PLAY
         bne ui_rts
         jmp ui_play_pot
 
@@ -749,13 +753,18 @@ ui_edit_btn:
         jmp @chord
 @n4:    cmp #UI_TUNE
         beq @r
-        jsr ui_pop_mode             ; menu / confirm / receive: back
+        cmp #UI_SEQ
+        bne @n5
+        lda #UI_PLAY                ; sequencer page -> PLAY
+        sta ui_mode
+        bne @foc
+@n5:    jsr ui_pop_mode             ; menu / confirm / receive: back
         jsr ui_receive_off
         ldx ui_eside
         lda ui_mode
         cmp #UI_EDIT
         beq @chord
-        ldx ui_focus
+@foc:   ldx ui_focus
         cpx #1
         beq @chord
         ldx #0
@@ -821,6 +830,7 @@ ui_tone_toggle:
         .include "ui/edit.asm"
         .include "ui/menu.asm"
         .include "ui/store.asm"
+        .include "ui/seq.asm"
         .include "ui/render.asm"
         .include "ui/tables.asm"
         .include "ui/gen_tables.inc"

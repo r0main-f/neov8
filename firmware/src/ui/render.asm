@@ -53,8 +53,11 @@ ui_render:
 @nost:  lda ui_tch_on
         beq @mode
         lda ui_mode
+        cmp #UI_SEQ
+        beq @tch
         cmp #UI_MENU
         bcs @mode
+@tch:
         ldx #5
 @t:     lda ui_tch_txt,x
         sta ui_tx,x
@@ -67,8 +70,8 @@ ui_render:
         lda ui_disp_lo,x
         pha
         rts                         ; mode renderer, returns to ui_render's caller via ui_compose
-ui_disp_lo: .byte <(ui_disp_play-1), <(ui_disp_edit-1), <(ui_disp_menu-1), <(ui_disp_tune-1), <(ui_disp_confirm-1), <(ui_disp_receive-1)
-ui_disp_hi: .byte >(ui_disp_play-1), >(ui_disp_edit-1), >(ui_disp_menu-1), >(ui_disp_tune-1), >(ui_disp_confirm-1), >(ui_disp_receive-1)
+ui_disp_lo: .byte <(ui_disp_play-1), <(ui_disp_edit-1), <(ui_disp_menu-1), <(ui_disp_tune-1), <(ui_disp_confirm-1), <(ui_disp_receive-1), <(ui_disp_seq-1)
+ui_disp_hi: .byte >(ui_disp_play-1), >(ui_disp_edit-1), >(ui_disp_menu-1), >(ui_disp_tune-1), >(ui_disp_confirm-1), >(ui_disp_receive-1), >(ui_disp_seq-1)
 
 ; entry text ("--" or "4-") at Y
 ui_disp_entry:
@@ -347,6 +350,15 @@ ui_disp_confirm:
         lda #$3f
         sta ui_blm
         lda ui_cfm
+        cmp #2
+        bne @nu
+        ldx #5
+@e:     lda ui_s_erase,x
+        sta ui_tx,x
+        dex
+        bpl @e
+        jmp ui_compose
+@nu:    cmp #0
         bne @u
         ldx #5
 @s:     lda ui_s_send,x
@@ -456,8 +468,8 @@ ui_render_leds:
         lda ui_ledm_lo,x
         pha
         rts
-ui_ledm_lo: .byte <(ui_leds_play-1), <(ui_leds_edit-1), <(ui_leds_menu-1), <(ui_leds_tune-1), <(ui_leds_confirm-1), <(ui_leds_receive-1)
-ui_ledm_hi: .byte >(ui_leds_play-1), >(ui_leds_edit-1), >(ui_leds_menu-1), >(ui_leds_tune-1), >(ui_leds_confirm-1), >(ui_leds_receive-1)
+ui_ledm_lo: .byte <(ui_leds_play-1), <(ui_leds_edit-1), <(ui_leds_menu-1), <(ui_leds_tune-1), <(ui_leds_confirm-1), <(ui_leds_receive-1), <(ui_leds_seq-1)
+ui_ledm_hi: .byte >(ui_leds_play-1), >(ui_leds_edit-1), >(ui_leds_menu-1), >(ui_leds_tune-1), >(ui_leds_confirm-1), >(ui_leds_receive-1), >(ui_leds_seq-1)
 
 ui_leds_tune:
         lda #LEDL_AUTOTUNE
@@ -795,4 +807,4 @@ ui_compose:
 @f6:    lda ui_c
         sta UD_FLAGS
         inc UD_COUNT
-        rts
+        jmp ui_seq_dbg

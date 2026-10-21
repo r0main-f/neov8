@@ -108,6 +108,27 @@ G_BEND_RANGE = 15           ; semitones
 G_LAST_STEP = 16            ; for power-on
 G_SIZE      = 64
 
+; ============================================================== polysequencer (eng/seq.asm) <-> UI (ui/seq.asm)
+; Switch state written by the UI (stock Rev4 sequencer page semantics), read by the engine at start/stop:
+;   seq_play   bit0 PLAY 1, bit1 PLAY 2        seq_rec    bit0 REC 1, bit1 REC 2
+;   seq_loop   LOOP (nonzero)                  seq_lock   LOCK (nonzero: continuous overdub / bounce)
+;   seq_song   SONG mode (nonzero)             seq_reps   2 B: song repeat counts ch1, ch2 (0-99)
+;   seq_inst   INSTANT RECORD (nonzero)        seq_metro  metronome on (forces instant record, stock)
+;   seq_metbeat 0 quarter, 1 eighth, 2 sixteenth   seq_quant  0 none .. 10 (stock table)
+;   seq_tempo  20-251 BPM                      seq_clk    0 internal, 1 external (SEQ CK IN), 2 MIDI clock
+;   seq_extrate 0 = 96, 1 = 48, 2 = 24 ppqn (external clock)
+; Engine state read by the UI:
+;   seq_run    0 stopped, 1 running            seq_mode   what runs: bit0 playing, bit1 recording, bit2 waiting
+;                                              for the first key (record not instant), bit3 song
+;   seq_free   16-bit events left              seq_len    2 x 16-bit events per channel
+;   seq_status last start/stop result: 0 ok, 1 nothing to play, 2 nothing selected, 3 song needs both channels,
+;              4 song refused while recording, 5 memory full
+; Routines: seq_init  seq_startstop (UI START/STOP: validates, starts or stops; sets seq_status)
+;   seq_clear (stock CLEAR: switches off, stop)  seq_erase (A = channel mask: forget the recorded data)
+;   seq_tempo_set (A = BPM)  seq_service (main loop)  seq_dump (MIDI SysEx of the sequence data, background)
+;   The engine records keyboard events and plays them through the voice assigner like the stock ($9000, $948F,
+;   $B000 queues). Data in volatile RAM (lost at power-off, as the stock).
+
 ; ============================================================== module API (global labels with module prefix)
 ; core:  panel_*, adc_read, cv_*            (main.s, panel.asm, adc.asm, cv.asm)
 FW_VERSION_MAJ = 0

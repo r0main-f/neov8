@@ -50,7 +50,7 @@ ui_st_dest: .res 1
 ui_st_n:    .res 1          ; digits typed
 ui_st_d:    .res 1
 ui_cmp:     .res 1          ; side being compared, $FF none
-ui_cfm:     .res 1          ; confirm: 0 SysEx dump, 1 undo
+ui_cfm:     .res 1          ; confirm: 0 SysEx dump, 1 undo, 2 sequencer erase
 ui_rxcnt:   .res 1          ; midi_sxcount when the SysEx receive page opened
 ; ---- edit
 ui_sel:     .res 2          ; keypad selector per var (pwm, lfo): 1 or 2
@@ -90,3 +90,8 @@ ui_dpbm:    .res 1          ; blinking decimal points
 ui_led:     .res 4          ; LED bytes (display RAM 0, 3, 6, 9)
 ui_ledb:    .res 4          ; blinking LEDs
 ui_stp:     .res 24         ; step pack/unpack buffer
+; ---- sequencer page
+ui_sq_fld:  .res 1          ; field edited by digits / FWD / REV: 0 tempo, 1 beat, 2 quantize, 3 song
+ui_sq_n:    .res 1          ; digits typed
+ui_sq_dig:  .res 4
+ui_sq_acc:  .res 2

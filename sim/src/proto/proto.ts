@@ -10,6 +10,7 @@ import {
   encodeProgramDump, parseSysex, decodeProgramBody, noteName, describe,
 } from './patch';
 import { MENU, menuByNum, type MenuItem } from './menu';
+import { ProtoSeq, QUANT_NAMES, QUANT_TICKS, STATUS_TEXT } from './seq';
 import { defaultGlobals, defaultPerf, type Globals, type Perf, type Side, type Trims, type Voice } from './state';
 
 const PAGE_ORDER = ['P1', 'P2', 'A', 'B', 'C', 'D'];
@@ -24,8 +25,9 @@ type Mode =
   | { kind: 'edit'; page: string; side: Side }
   | { kind: 'menu'; item: number; back: Mode }
   | { kind: 'tune'; step: number; t0: number; back: Mode }
-  | { kind: 'confirm'; what: 'dump' | 'undo'; back: Mode }
-  | { kind: 'receive'; back: Mode; count: number };
+  | { kind: 'confirm'; what: 'dump' | 'undo' | 'erase'; back: Mode }
+  | { kind: 'receive'; back: Mode; count: number }
+  | { kind: 'seq' };
 
 interface Entry { target: 'L' | 'R' | 'S' | 'menu'; digits: string; t0: number }
 interface Store { kind: 'prog' | 'step'; side: Side; dest: number; digits: string }
@@ -76,6 +78,11 @@ export class NeoV8Proto implements Backend {
   lastMidiByte = -1;
   tuneResults: string[] = [];
   midiOut: number[] = [];
+  /** polysequencer (prototype model); playback drives the voices like the keyboard */
+  seq = new ProtoSeq((n, on, v) => this.noteEvent(n, on, v));
+  /** sequencer page: value field edited by digits / FWD / REV (CALL R tempo, CALL L beat, OCT L quantize, SPLIT song) */
+  seqField: 'tempo' | 'beat' | 'quant' | 'song' = 'tempo';
+  seqDigits = '';
   log: string[] = [];
   now = 0;
 
@@ -117,6 +124,7 @@ export class NeoV8Proto implements Backend {
       return;
     }
     if (this.globals.localOn) this.noteEvent(note, down, velocity);
+    this.seq.key(note, down, velocity);
     if (this.globals.txNotes) {
       const ch = (note < this.perf.split && this.perf.kbMode === 'split' ? this.globals.midiChL : this.globals.midiChR) - 1;
       this.midiOut.push(down ? 0x90 | ch : 0x80 | ch, note & 127, down ? velocity & 127 : 64);
@@ -217,6 +225,8 @@ export class NeoV8Proto implements Backend {
       displayBlink: d.blink.map((b) => (b ? '1' : '0')).join(''),
       dp: d.dp.map((b) => (b ? '1' : '0')).join(''),
       leds: this.ledStates(),
+      seq: { mode: this.seq.mode, running: this.seq.running, play: this.seq.play, rec: this.seq.rec, tempo: this.seq.tempo,
+        quant: this.seq.quant, free: this.seq.free, len: [...this.seq.len], events: [this.seq.data[0].length, this.seq.data[1].length] },
       editedL: this.isEdited('L'),
       editedR: this.isEdited('R'),
       compare: this.compare,
@@ -333,6 +343,8 @@ export class NeoV8Proto implements Backend {
         return;
       case 'menu':
         return this.menuKey(id, sh);
+      case 'seq':
+        return this.seqKey(id, sh);
       case 'edit':
         return this.editKey(id, sh);
       case 'play':
@@ -379,6 +391,9 @@ export class NeoV8Proto implements Backend {
       case 'confirm':
       case 'receive':
         this.mode = this.mode.back;
+        return;
+      case 'seq':
+        this.mode = { kind: 'play' };
         return;
       case 'tune':
         return;
@@ -475,10 +490,13 @@ export class NeoV8Proto implements Backend {
         return;
       case 'arp_left': p.arpL = !p.arpL; return;
       case 'arp_right':
-        if (sh) return this.flash('SEq --'); // sequencer: Phase 5
+        if (sh) { this.mode = { kind: 'seq' }; this.seqField = 'tempo'; this.seqDigits = ''; return; } // sequencer page
         p.arpR = !p.arpR;
         return;
-      case 'arp_pause': p.arpPause = !p.arpPause; return;
+      case 'arp_pause':
+        if (sh) return this.seqStartStop(); // sequencer START/STOP from the Normal page
+        p.arpPause = !p.arpPause;
+        return;
       case 'mute':
         if (sh) return this.enterMenu(21); // legacy: velocity pages
         this.muted = !this.muted;
@@ -582,6 +600,11 @@ export class NeoV8Proto implements Backend {
     const m = this.mode as Extract<Mode, { kind: 'confirm' }>;
     if (id !== 'store') return; // EDIT (cancel) is handled on release
     this.mode = m.back;
+    if (m.what === 'erase') {
+      this.seq.erase(this.seq.rec || 3);
+      this.flash('ErASEd');
+      return;
+    }
     if (m.what === 'dump') {
       for (let i = 0; i < NUM_PROGRAMS; i++) this.midiOut.push(...encodeProgramDump(i, this.programs[i]));
       this.flash('SEnt  ');
@@ -593,6 +616,89 @@ export class NeoV8Proto implements Backend {
       this.logEv(`undo: program ${this.two(this.undo.index)} restored`);
       this.undo = null;
       this.flash('UndOnE');
+    }
+  }
+
+  // ---------------------------------------------------------- SEQUENCER PAGE
+  private seqStartStop() {
+    const st = this.seq.startStop();
+    if (st) this.flash(STATUS_TEXT[st], true);
+    this.logEv(`sequencer ${this.seq.running ? 'started (' + this.seq.mode + ')' : 'stopped'}${st ? ' status ' + st : ''}`);
+  }
+  private seqTouch(f: 'tempo' | 'beat' | 'quant' | 'song' | 'clk' | 'rate') {
+    const mn = { tempo: 'bP', beat: 'nb', quant: 'qU', song: 'S1', clk: 'CL', rate: 'rt' }[f];
+    this.showTouch(mn, this.seqValue(f));
+  }
+  seqValue(f: 'tempo' | 'beat' | 'quant' | 'song' | 'clk' | 'rate'): string {
+    const q = this.seq;
+    switch (f) {
+      case 'tempo': return String(q.tempo).padStart(4);
+      case 'beat': return String([4, 8, 16][q.metBeat]).padStart(4);
+      case 'quant': return QUANT_NAMES[q.quant].padStart(4);
+      case 'song': return this.two(q.reps[0]) + this.two(q.reps[1]);
+      case 'clk': return ['  In', '  EH', '  nI'][q.clk];
+      case 'rate': return String([96, 48, 24][q.extRate]).padStart(4);
+    }
+  }
+  private seqKey(id: ButtonId, sh: boolean) {
+    const q = this.seq;
+    const d = DIGIT[id];
+    if (d !== undefined) {
+      this.seqDigits += String(d);
+      const f = this.seqField;
+      if (f === 'tempo' && this.seqDigits.length === 3) { q.tempo = Math.max(20, Math.min(251, Number(this.seqDigits))); this.seqDigits = ''; }
+      else if (f === 'beat') { q.metBeat = Math.min(2, d); this.seqDigits = ''; }
+      else if (f === 'quant') {
+        this.seqDigits = '';
+        if (q.running && q.recording) return this.flash('rEC On', true); // would rearrange the take (Rev4 problem)
+        q.quant = Math.min(QUANT_TICKS.length - 1, d);
+      }
+      else if (f === 'song' && this.seqDigits.length === 4) {
+        q.reps = [Math.max(1, Number(this.seqDigits.slice(0, 2))), Math.max(1, Number(this.seqDigits.slice(2)))];
+        this.seqDigits = '';
+      }
+      const shown = f === 'song' && this.seqDigits ? (this.seqDigits + '----').slice(0, 4) : f === 'tempo' && this.seqDigits ? (this.seqDigits + '--').slice(0, 3).padStart(4) : this.seqValue(f);
+      this.showTouch({ tempo: 'bP', beat: 'nb', quant: 'qU', song: 'S1' }[f], shown);
+      return;
+    }
+    switch (id) {
+      case 'fwd': case 'rev': {
+        const dlt = id === 'fwd' ? 1 : -1;
+        this.seqDigits = '';
+        if (this.seqField === 'tempo') q.tempo = Math.max(20, Math.min(251, q.tempo + dlt));
+        else if (this.seqField === 'beat') q.metBeat = (q.metBeat + dlt + 3) % 3;
+        else if (this.seqField === 'quant') {
+          if (q.running && q.recording) return this.flash('rEC On', true);
+          q.quant = Math.max(0, Math.min(QUANT_TICKS.length - 1, q.quant + dlt));
+        }
+        else q.reps[0] = Math.max(1, Math.min(99, q.reps[0] + dlt));
+        return this.seqTouch(this.seqField);
+      }
+      case 'call_r': this.seqField = 'tempo'; this.seqDigits = ''; return this.seqTouch('tempo');
+      case 'call_l': this.seqField = 'beat'; this.seqDigits = ''; return this.seqTouch('beat');
+      case 'oct_l': this.seqField = 'quant'; this.seqDigits = ''; return this.seqTouch('quant');
+      case 'kb_split': this.seqField = 'song'; this.seqDigits = ''; return this.seqTouch('song');
+      case 'reldef_l': q.play ^= 1; return;
+      case 'reldef_r': q.play ^= 2; return;
+      case 'pbdef_l': q.rec ^= 1; return;
+      case 'pbdef_r': q.rec ^= 2; return;
+      case 'hold_l': q.loop = !q.loop; return;
+      case 'hold_r': q.lock = !q.lock; return;
+      case 'kb_whole': q.song = !q.song; return;
+      case 'arp_pause': return this.seqStartStop();
+      case 'arp_left':
+        if (sh) { this.mode = { kind: 'confirm', what: 'erase', back: this.mode }; return; }
+        q.clear();
+        return this.flash('CLEAr ');
+      case 'arp_down': q.instant = !q.instant; return;
+      case 'arp_random': q.metro = !q.metro; return;
+      case 'arp_up': q.clk = (q.clk + 1) % 3; return this.seqTouch('clk');
+      case 'kb_layer': q.extRate = 0; return this.seqTouch('rate');
+      case 'uni_l': q.extRate = 1; return this.seqTouch('rate');
+      case 'uni_r': q.extRate = 2; return this.seqTouch('rate');
+      case 'arp_right': this.mode = { kind: 'play' }; return;
+      case 'tape_dump': this.mode = { kind: 'confirm', what: 'dump', back: this.mode }; return;
+      case 'tape_load': this.mode = { kind: 'receive', back: this.mode, count: 0 }; return;
     }
   }
 
@@ -690,6 +796,11 @@ export class NeoV8Proto implements Backend {
       return;
     }
     if (this.mode.kind === 'edit') return this.editPot(id, v, prev);
+    if (this.mode.kind === 'seq' && id === 'arp_speed') {
+      this.seq.tempo = 20 + Math.round((v / POT_MAX) * 231);
+      this.seqField = 'tempo';
+      return this.seqTouch('tempo');
+    }
     if (this.mode.kind !== 'play') return;
     if (id === 'arp_speed') {
       this.perf.arpSpeed = Math.round((v / POT_MAX) * 127);
@@ -963,6 +1074,7 @@ export class NeoV8Proto implements Backend {
       } else this.mode.step = step;
     }
     this.arpTick(dt);
+    this.seq.run(dt);
   }
 
   // =============================================================== display
@@ -997,7 +1109,7 @@ export class NeoV8Proto implements Backend {
       }
       return { text, blink, dp, dpBlink };
     }
-    if (this.touch && (this.mode.kind === 'play' || this.mode.kind === 'edit')) {
+    if (this.touch && (this.mode.kind === 'play' || this.mode.kind === 'edit' || this.mode.kind === 'seq')) {
       return { text: this.touch.mn + this.touch.value, blink, dp, dpBlink };
     }
     switch (this.mode.kind) {
@@ -1009,6 +1121,7 @@ export class NeoV8Proto implements Backend {
       }
       case 'confirm':
         if (this.mode.what === 'dump') text = 'SEnd ?';
+        else if (this.mode.what === 'erase') text = 'ErASE?';
         else text = `UndO${this.two(this.undo?.index ?? 0)}`;
         blink.fill(true);
         return { text, blink, dp, dpBlink };
@@ -1016,6 +1129,14 @@ export class NeoV8Proto implements Backend {
         text = `Ld  ${this.two(this.mode.count % 100)}`;
         blink[0] = blink[1] = true;
         return { text, blink, dp, dpBlink };
+      case 'seq': {
+        const q = this.seq;
+        const st = q.mode;
+        if (q.waiting) blink[0] = blink[1] = true;
+        if (q.running && q.recording && !q.waiting) text = st + String(q.free).padStart(4);
+        else text = st + this.seqValue('tempo');
+        return { text, blink, dp, dpBlink };
+      }
       case 'menu': {
         const it = this.menuItem();
         if (it.special === 'dispTest') return { text: '888888', blink, dp: [true, true, true, true, true, true], dpBlink };
@@ -1118,6 +1239,18 @@ export class NeoV8Proto implements Backend {
       case 'receive':
         on('tape_load', 'blink');
         break;
+      case 'seq': {
+        const q = this.seq;
+        on('reldef_l', !!(q.play & 1)); on('reldef_r', !!(q.play & 2));
+        on('pbdef_l', !!(q.rec & 1)); on('pbdef_r', !!(q.rec & 2));
+        on('hold_l', q.loop); on('hold_r', q.lock);
+        on('arp_pause', q.waiting ? 'blink' : q.running);
+        on('arp_down', q.instant); on('arp_random', q.metro); on('arp_up', q.clk !== 0);
+        on('kb_whole', q.song);
+        on('kb_layer', q.clk === 1 && q.extRate === 0); on('uni_l', q.clk === 1 && q.extRate === 1); on('uni_r', q.clk === 1 && q.extRate === 2);
+        on('edit', true);
+        break;
+      }
       case 'play': {
         on('kb_whole', p.kbMode === 'whole');
         on('kb_split', p.kbMode === 'split');

@@ -120,7 +120,7 @@ for (const f of files) {
   describe(`NeoV8 ROM: ${f}`, () => {
     for (const sc of scenarios) {
       const req = ([] as string[]).concat(sc.requires ?? []);
-      it.skipIf(req.includes('engine'))(sc.name, () => runOnRom(sc));
+      it.skipIf(req.includes('engine') || (req.includes('seq-page') && !process.env.NEOV8_SEQ))(sc.name, () => runOnRom(sc)); // seq-page: until the engine lands
     }
   });
 }
