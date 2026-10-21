@@ -42,6 +42,7 @@ PTM_CR2     = $6C01         ; W: CR2   R: status
 PTM_T1      = $6C02
 PTM_T2MSB   = $6C04         ; R: T2 counter MSB (clears the T2 flag after a status read)
 PTM_T2LSB   = $6C05
+PTM_T3MSB   = $6C06         ; MSB buffer for T3
 PTM_T3LSB   = $6C07
 
 CPU_HZ      = 2000000

@@ -231,6 +231,8 @@ autotune:
         jsr midi_flush
         pla
         sta midi_rxovr
+        lda #0
+        sta en_a440                 ; the tuner reprogrammed the PTM: the reference tone is off
         jmp eng_all_off
 
 ; ------------------------------------------------------------------ chip init (same order as the stock ROM)

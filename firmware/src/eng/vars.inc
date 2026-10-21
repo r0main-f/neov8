@@ -12,6 +12,7 @@ en_phase:   .res 1          ; 3-phase round robin of the control tick
 en_pwmalt:  .res 1          ; alternates LFO->PWM VCO1 / VCO2 in phase 0
 en_mute:    .res 1          ; AUDIO MUTE: program volume 0
 en_cidx:    .res 1          ; MIDI-controller CV refresh position
+en_a440:    .res 1          ; A440 tone on
 
         .bss
 ; ---- PWM configuration (written by apply, read by env and lfo). Index i = vco2*2 + side (vco2: 1 = VCO2).

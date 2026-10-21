@@ -206,7 +206,7 @@ ap_pwm_vco:
 @r:     rts
 
 ; Initial pulse width + autotune PW calibration -> ch6 (VCO1) / ch2 (VCO2) of the side's 4 voices; ch5/ch1 (PWM) = $0404.
-; Pulse off -> PW $7F (no calibration). Calibration (CAL_PW_HI) is a signed offset: a result below 0 clamps to 0.
+; Pulse off -> PW $7F (no calibration). CAL_PW_HI is a signed offset (docs/autotune.md §6).
 ap_init_pw:
         ldy #$0f
         lda (en_buf),y
@@ -257,6 +257,16 @@ ap_init_pw:
         bpl @v
         rts
 @one:   bmi @raw
+        pha                         ; signed calibration: pw + (int8)CAL_PW_HI, clamped 0..127. Same as the
+        lda CAL_PW_HI,y             ; original for negative values (all its autotune writes); the original
+        bmi @neg                    ; zeroed the width for 0..127, i.e. no pulse on a never-tuned unit.
+        pla
+        clc
+        adc CAL_PW_HI,y
+        bpl @raw
+        lda #$7f
+        bne @raw
+@neg:   pla
         clc
         adc CAL_PW_HI,y
         bcs @raw

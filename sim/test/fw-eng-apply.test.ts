@@ -40,7 +40,13 @@ function staticSlots(progR: Uint8Array, progL: Uint8Array, whole: boolean): numb
 describe.skipIf(!hasStock)('engine parity: program apply', () => {
   const programs = Array.from({ length: 100 }, (_, i) => randomProgram(1000 + i));
   const bram = bramWith(programs);
-  beforeAll(() => buildFirmware(BUILD, ['STUB_UI', 'STUB_MIDI', 'STUB_TUNE', 'STUB_VX', 'STUB_ENV', 'STUB_LFO']));
+  // realistic autotune tables (as the stock tuner writes them: PW calibration negative, $F0-$FF)
+  for (let i = 0; i < 16; i++) {
+    bram[0x1980 + i] = 0x30; bram[0x1990 + i] = 0x80; // pitch offset
+    bram[0x19a0 + i] = 0x40; bram[0x19b0 + i] = 0x00; // scale trim
+    bram[0x19c0 + i] = 0xf0 + (i % 16); bram[0x19d0 + i] = (i * 37) & 0xfe; // PW calibration
+  }
+  beforeAll(() => buildFirmware(BUILD, ['STUB_UI', 'STUB_MIDI', 'STUB_VX', 'STUB_ENV', 'STUB_LFO']));
 
   function boot(rom: Uint8Array) {
     const b = new MachineBackend('x', rom, bram);
@@ -69,4 +75,15 @@ describe.skipIf(!hasStock)('engine parity: program apply', () => {
       });
     }
   }
+
+  it('never-tuned unit (blank tables): NeoV8 keeps the program pulse width (the stock zeroed it)', () => {
+    const blank = bramWith(programs);
+    const neo = new MachineBackend('n', loadNeoRomFrom(BUILD), blank);
+    neo.run(1500);
+    tp(neo, 5, 0, 3);
+    tp(neo, 1, 3, 0);
+    const p = programs[3];
+    if (!(p[0x11] & 0x80)) expect(neo.machine.cv[6] >> 7).toBe(p[0x0f] & 0x7f); // VCO1 PW of voice 0
+    if (!(p[0x12] & 0x80)) expect(neo.machine.cv[2] >> 7).toBe(p[0x26] & 0x7f); // VCO2 PW of voice 0
+  });
 });

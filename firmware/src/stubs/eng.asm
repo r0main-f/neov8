@@ -12,3 +12,4 @@ eng_side_off:   STUBCALL $16
 eng_all_off:    STUBCALL $17
 eng_ctrl:       STUBCALL $18
 eng_compare:    STUBCALL $19
+eng_a440:       STUBCALL $1A

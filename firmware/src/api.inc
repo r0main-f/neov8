@@ -54,7 +54,9 @@ CAL_TRIM_PA = CAL+$20       ; 16: scale trim (slot 4*osc) PA byte
 CAL_TRIM_PB = CAL+$30       ; 16: scale trim PB byte
 CAL_PW_HI   = CAL+$40       ; 16: pulse-width calibration
 CAL_PW_LO   = CAL+$50       ; 16
-CAL_FAILED  = CAL+$60       ; bit v = voice disabled by the last autotune
+CAL_FAILED  = CAL+$60       ; bit v = voice disabled by the last autotune (voice unavailable = PF_VOICEMASK | CAL_FAILED)
+; CAL_PW_HI is a signed offset; pitch/PW formulas: docs/autotune.md §6. tune_res[16] (public, tune_vars.inc):
+; 0 = ok or the error letter per oscillator (A dead, b offset, C unstable, d scale, E pulse) for the menu report.
 
 ; ---- test port: lets the test harness drive the engine before/without the UI (polled by the main loop)
 TESTPORT    = $0FF0
@@ -112,6 +114,7 @@ FW_VERSION_MIN = 1
 ; eng:   eng_init  eng_tick (IRQ, every 2.05 ms)  eng_service (main loop)
 ;        eng_apply_prog (X = side)   eng_apply_perf   eng_key_on (A note, Y vel)  eng_key_off (A note)
 ;        eng_side_on (X side, A note, Y vel)  eng_side_off (X side, A note)  eng_all_off
+;        eng_a440 (A = 1 on / 0 off: 440 Hz reference tone on PTM T3)
 ;        eng_ctrl (X = 0 -X, 1 +X, 2 Fc pedal, 3 pressure, 4 bend L, 6 bend R: A = value/MSB, Y = bend LSB;
 ;                  X = 8/9 damper R/L: A >= 64 = release defeat on)  eng_compare (X side, A = 1 hear stored / 0 edit buffer)
 ; ui:    ui_init  ui_key (A = button code, X = raw 8279 byte: bit6 = 1 when A440 is up)

@@ -183,6 +183,24 @@ ctl_out:
         sta PIA2_PA
         rts
 
+; A440 reference tone on PTM timer 3 (output O3 -> mixer): A = 1 on, 0 off. 2 MHz / (2 x 2273) = 439.9 Hz,
+; like the stock ($F1B2). Assumes CR2 bit 0 = 0 (CR3 at $6C00), as left by ptm_init. The autotune stops it.
+eng_a440:
+        sta en_a440
+        php
+        sei
+        lda #$08
+        sta PTM_T3MSB
+        lda #$e0
+        sta PTM_T3LSB               ; latch $08E0
+        lda #$02
+        ldx en_a440
+        beq @w
+        lda #$82                    ; T3 continuous, internal clock, output enabled
+@w:     sta PTM_CR13
+        plp
+        rts
+
 ctl_init:
         ldx #7
 @l:     lda #0
