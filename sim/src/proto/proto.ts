@@ -61,6 +61,8 @@ export class NeoV8Proto implements Backend {
   lastTouched: { param: string; side: Side } | null = null;
   held = new Set<ButtonId>();
   editChordUsed = false;
+  lastEditPress = -1e9;
+  chordArmed = false;
   pots: Record<string, number> = {};
   caught: Record<string, boolean> = {};
   potAcc: Record<string, number> = {};
@@ -292,7 +294,25 @@ export class NeoV8Proto implements Backend {
     if (id === 'a440') return; // SHIFT; does nothing alone
     if (id === 'edit') {
       this.editChordUsed = false;
+      this.lastEditPress = this.now;
+      this.chordArmed = !sh;
       return; // acts on release so EDIT+digit can be a chord
+    }
+    // Page jump, as the firmware (no key-up events): EDIT (without A440) arms it, the very next key disarms
+    // it, and if that key is a digit 1-6 within 0.6 s it jumps to the page. A440 + digit in EDIT also jumps.
+    // Holding EDIT + digit still works in the simulator.
+    if (this.chordArmed) {
+      this.chordArmed = false;
+      const d = DIGIT[id];
+      if (d !== undefined && d >= 1 && d <= 6 && this.now - this.lastEditPress < 600) {
+        this.editChordUsed = true;
+        this.jumpPage(d);
+        return;
+      }
+    }
+    if (sh && this.mode.kind === 'edit' && DIGIT[id] !== undefined && DIGIT[id]! >= 1 && DIGIT[id]! <= 6) {
+      this.jumpPage(DIGIT[id]!);
+      return;
     }
     if (this.held.has('edit') && DIGIT[id] !== undefined) {
       this.editChordUsed = true;

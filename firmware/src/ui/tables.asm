@@ -102,7 +102,7 @@ ui_stf_smask:   .byte $20, $10, $08, $04, $80, $80, $20, $10, $08, $04, $80, $40
 ui_stf_perf:    .byte PF_UNISON, PF_UNISON, PF_ARP_ON, PF_ARP_ON, PF_PBDEF, PF_PBDEF, PF_LFOSYNC, PF_LFOSYNC
                 .byte PF_ARP_RETRIG, PF_ARP_SYNC, PF_ARP_AUTOOCT, PF_ARP_AUTOOCT, PF_VCAVEL, PF_VCAVEL
                 .byte PF_PRESSDEF, PF_PRESSDEF, PF_KBDGATE, PF_KBDGATE, PF_CVLEFT, PF_RELDEF, PF_RELDEF
-ui_stf_pmask:   .byte 2, 1, 2, 1, 1, 2, 2, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1
+ui_stf_pmask:   .byte 2, 1, 2, 1, 1, 2, 2, 1, 1, 1, 2, 1, 2, 1, 1, 2, 2, 1, 1, 2, 1   ; byte 21: bit6 LEFT, bit5 RIGHT (stock $824E)
 UI_STF_N = 21
 ; multi-bit fields: step byte, shift, mask, PERF offset
 ui_stm_byte:    .byte 0, 1, 2, 3, 3, 4, 5, 20, 21, 21, 22

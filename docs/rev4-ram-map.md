@@ -138,7 +138,7 @@ Written by `StepStore $F387` and read by `StepRecall $F469`. Bits are listed MSB
 | 6–12 | **Right** trimmer offsets, signed 8-bit (prog + trim, clamped 0..127; `ApplyTrims $A586`), in order: Attack(`$15`,+`$19`), Release(`$17`,+`$1B`), Fc `$13`, Glide `$0A`, LFO1 rate `$0B`, Detune `$22`, Volume `$21`. For A/R, `CalcTrims $A5D1` stores the larger of the ADSR2/ADSR1 deltas. |
 | 13–19 | **Left** trimmer offsets, same order |
 | 20 | Stored XOR `$30`. b7 ARP auto-octave L `$1F` · b6 auto-octave R `$1E` · b5 VCA velocity L (= NOT bit 7 of `$085C`) · b4 VCA velocity R (`$081C`) · b3 PRESSURE DEFEAT R `$08A9` · b2 PRESSURE DEFEAT L `$08AA` · b1–0 ARP L mode `$08AB`. The step **overrides program byte `$1C` bit 7** on recall. |
-| 21 | b7 0 · b6 KBD GATE R `$0799` · b5 KBD GATE L `$0798` · b4 CV LEFT `$08E5` · b3–2 KBD ASSIGN mode L `$079B` (0–3) · b1–0 KBD ASSIGN mode R `$079A` |
+| 21 | b7 0 · b6 KBD GATE L `$0799` · b5 KBD GATE R `$0798` (corrected: see $824E) · b4 CV LEFT `$08E5` · b3–2 KBD ASSIGN mode L `$079B` (0–3) · b1–0 KBD ASSIGN mode R `$079A` |
 | 22 | Voice-disable mask `$0759` (SET page, bit per voice). Bit order follows button table `$85BD`. |
 | 23 | b1 REL DEFEAT L `$5F` · b0 REL DEFEAT R `$5E` |
 | 24–29 | not stored (TX sends `$80`) |
@@ -215,7 +215,7 @@ Boot clears `$0000–$0BFF` (and `$6D00–$6DFF`) at `$EA08`. `$0C00–$1FFF` is
 | `$075B–$075E` | | SET-page function digits | C |
 | `$0760–$0778` | | MIDI settings (§3) | C |
 | `$0780–$078E` | | pot relative accumulators (signed) | C |
-| `$0798/$0799` | | KBD GATE L / R | C |
+| `$0798/$0799` | | KBD GATE R / L (stock Alternate table $824E: TAPE LOAD -> $0798 = RIGHT; corrected) | C |
 | `$079A/$079B` | | assign mode R / L | C |
 | `$07E8` | | external arp clock enable | C |
 | `$07F0` | | IRQ deferred-work active flag | C |

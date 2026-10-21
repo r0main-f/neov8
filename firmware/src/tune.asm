@@ -228,11 +228,12 @@ tn_end:
 @n:     dex
         bpl @v
         ldx #<tn_txt_ok
+        ldy #>tn_txt_ok
         lda tn_prot
         beq @np
         ldx #<tn_txt_prot
-@np:    ldy #>tn_txt_ok
-        jsr panel_text
+        ldy #>tn_txt_prot
+@np:    jsr panel_text
         lda tn_prot
         bne @msg
         ldx tn_first
@@ -262,7 +263,6 @@ tn_txt_ok:   .byte "tU  oK"
 tn_txt_prot: .byte "PrOtEC"
 tn_txt_err:  .byte "Er    "
 tn_txt_tu:   .byte "tU    "
-        .assert >tn_txt_ok = >tn_txt_prot, error, "tune texts must share a page"
 
 ; Progress "tU v.o": voice 1-8, oscillator 1 = VCO1, 2 = VCO2.
 tn_show:

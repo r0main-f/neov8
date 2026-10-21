@@ -35,6 +35,10 @@ export const TABLES = [
   ['tb_adsr_rate_lo', 0x8880, 128, 'ADSR rate, low byte'],
   ['tb_wave_comp', 0xdee1, 3, 'waveform-mix level compensation steps'],
   ['tb_tempo_t1', 0xb66d, 236, 'tempo -> PTM T1 MSB'],
+  ['tb_taper_fact', 0xbe20, 96, 'factory velocity tapers 1-3 (32 key speeds each)'],
+  ['tb_vel_vca', 0xbe80, 128, 'velocity -> VCA multiplier curve'],
+  ['tb_vel_mod', 0xbf00, 128, 'velocity -> modulation velocity curve'],
+  ['tb_vel_att', 0xbf80, 128, 'velocity -> attack-rate offset curve'],
 ];
 
 const extra = process.argv.slice(2); // optional "label:addr:len" additions

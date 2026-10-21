@@ -36,7 +36,7 @@ a refused write is detected by reading the byte back.
 | EDIT home (mod A–D) | `LA` `rb` `Lc` `rd` | source mnemonic `L1` `E2`…, DP = inverted (Rev4: `-3`) | mod depth hex `00`–`FF` (as Rev4) |
 | control touched (1.5 s) | mnemonic `Fc` | value, 4 chars: `Fc 127`, `SY  On`, `2S  E1` | |
 | pickup not caught | `Fc` | `‾ 60` = turn up · `_ 60` = turn down | |
-| STORE armed | `St` | destination, blinking | `␣L` / `␣r` program side · `SP` step · `Au` while auditioning (A440 held) |
+| STORE armed | `St` | destination, blinking | `␣L` / `␣r` program side · `SP` step |
 | SYSTEM menu | item `30` | mnemonic `Pn` | value `PU` |
 | messages | `StOrEd` `PrOtEC` `CAnCEL` `UndOnE` `InIt L` `SEnd ?` `SEnt` `tU 1.2` `tU oK` | | |
 
@@ -56,7 +56,7 @@ page id (`L1.`) in EDIT — while the edit buffer differs from the stored progra
 | A440+CALL L/R | load the null program into that side's edit buffer (Rev4 null patch) |
 | A440+STORE | compare (if edited) — otherwise offer to undo the last store |
 | A440+EDIT | SYSTEM menu |
-| hold SPLIT + key (or press SPLIT while holding a key) | split point, shown as a note: `SP  C3` (sharp = decimal point) |
+| hold a key on the keyboard and press SPLIT (as on Rev4) | split point, shown as a note: `SP  C3` (sharp = decimal point) |
 | WHOLE 8 / SPLIT / LAYER, UNISON L/R, HOLD, REL DEF, BEND DEF | as printed (performance settings) |
 | OCTAVE L/R | cycles normal → up → down; A440+OCTAVE = arpeggiator octave range 1–4 |
 | ARP UP / DOWN / RANDOM | mode; UP then DOWN (or DOWN then UP) = up/down |
@@ -73,7 +73,8 @@ or **Direct** mode (menu 31: the trimmer edits the program parameter itself and 
 ## 4. EDIT
 
 * Pages in Rev4 order: **1** VCO · **2** VCF/ADSR/LFO · **A B C D** modulation banks.
-  FWD/REV step through them; **EDIT + 1…6** jumps directly (1, 2, A, B, C, D).
+  FWD/REV step through them; **EDIT then a digit 1…6 within 0.6 s**, or **A440 + digit** while in EDIT, jumps
+  directly (1, 2, A, B, C, D).
 * Every button and pot keeps its Rev4 page function (`spec/pages.yaml`); the keypad selects the
   page's enum (PWM source, LFO waveform, mod source) and lights the digit of the current value.
 * **CALL L / CALL R** switch the edited side. EDIT returns to PLAY and remembers the page per side.
@@ -85,7 +86,7 @@ or **Direct** mode (menu 31: the trimmer edits the program parameter itself and 
 ## 5. Store, compare, undo
 
 1. **STORE** — LED blinks, display `St` + destination (current number) blinking.
-2. Choose the destination: 2 digits, or FWD/REV. Hold A440 to audition the destination (`Au`).
+2. Choose the destination: 2 digits, or FWD/REV.
 3. **STORE** commits (`StOrEd`), **EDIT** cancels (`CAnCEL`). Memory protect → `PrOtEC`, nothing written.
 4. The overwritten program is kept: **A440+STORE** (when nothing is edited) shows `UndO nn`, STORE restores it.
 
@@ -120,6 +121,22 @@ EDIT leaves. Values marked *step* belong to the performance and are saved with S
 | 90 | Ud | voice disable: keys 0–7 toggle a voice (LED = disabled) | count enabled |
 | 91 – 95 | bt Pt dt nn tu | button test · pot raw · display test · MIDI monitor · autotune report | |
 | 99 | rG | reset globals (patches untouched): set `YE`, press STORE | no/YE |
+
+## 6b. Hardware constraints that shaped the UI (found while porting it to the firmware)
+
+* **The 8279 reports key presses only, never releases.** A440 works as SHIFT because it is wired to the 8279
+  SHIFT input (its level comes with every key press), but no other button can be "held": EDIT acts when
+  pressed, page jumps are *EDIT then a digit within 0.6 s* or *A440 + digit* in EDIT, the split point is set by
+  holding a key on the keyboard and pressing SPLIT (the Rev4 gesture), and the prototype's "hold A440 to
+  audition the store destination" was dropped.
+* **Steps**: the stock 24-byte format is kept (stock steps remain readable both ways). NeoV8 adds one byte per
+  step in the battery extension block (`NV_STEPEXT`) for HOLD, ARP PAUSE and the arpeggiator octave range.
+  The voice-disable mask (menu 90) is part of the step, as on Rev4 (step byte 22).
+* **Footswitches** (menu 40–47) edit the stock battery records, so a footswitch setup survives a swap back
+  to the stock ROM; `99` = no function.
+* Service items: menu 91 shows the button code in decimal (the Rev4 Set-page / SysEx numbering), menu 92 the
+  7-bit pot value in hex. With the arpeggiator on MIDI clock, touching ARP SPEED shows the division
+  (`AS  16`, `AS 16t` …).
 
 ## 7. What the stock OS taught us (from `rev4-ui-map.md`, `hardware.md`)
 

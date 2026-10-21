@@ -146,7 +146,7 @@ describe('NeoV8 ROM: UI internals', () => {
     const n0 = b.machine.ram[0x0fe8];
     press(b, 'step_enable'); press(b, 'k0'); press(b, 'k3'); // step recall: 2 programs + perf
     const log = readCallLog(b.machine.ram).slice(-(b.machine.ram[0x0fe8] - n0));
-    expect(log.map((c) => c.id)).toEqual([0x12]);
+    expect(log.map((c) => c.id)).toEqual([0x12, 0x1b]); // eng_apply_perf, then eng_recalled (programs were recalled)
   });
 
   it('a stored step reads back with the stock 24-byte layout', () => {
@@ -257,6 +257,7 @@ async function fuzz(seed: number, steps: number) {
   const pot7: Record<string, number> = {};
   const trace: string[] = [];
   for (let i = 0; i < steps; i++) {
+    if (i % 50 === 49) await new Promise((r) => setImmediate(r)); // let vitest's worker RPC breathe
     const pi = p.inspect() as any;
     const x = r();
     let op: string;

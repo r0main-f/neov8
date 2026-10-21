@@ -85,6 +85,11 @@ ui_bram_probe:
 ui_load_prog:
         sta PERF+PF_PROG_R,x
         stx ui_d
+        pha
+        lda ui_eng                  ; recall: after the apply, the engine resets envelopes / kbd CV (stock recall)
+        ora #$40
+        sta ui_eng
+        pla
         jsr ui_prog_addr
         lda ui_d
         jsr ui_setbuf

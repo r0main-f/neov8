@@ -299,9 +299,17 @@ ui_apply_set:
 
 ui_engine:
         lda ui_eng
-        beq @r
+        beq @r0
         ldx #0
         stx ui_eng
+        pha
+        jsr ui_engine_apply
+        pla
+        and #$40                    ; a program was recalled: envelopes idle, kbd CV/gate cleared
+        beq @r0
+        jmp eng_recalled
+@r0:    rts
+ui_engine_apply:
         asl
         bcc @prog
         jmp eng_apply_perf          ; PERF changed (the engine re-applies the programs too)

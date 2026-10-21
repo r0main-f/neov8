@@ -165,8 +165,10 @@ mid  = F + CAL_OFS_HI[i] + oct + $89 + carries            (8-bit, $32 = $FF + ca
 ```
 
 At note-on (`$ED97`):
-- `n = clamp(note − 33, 3, 63)`. Below 3 or negative gives 3; 64 and above gives 63 (`$ED83`).
-- **PA = clamp(n + mid (with sign byte), 0, 127)**. A positive overflow gives `$7F`; a negative result gives 0 (`$EFB1`).
+- **PA = clamp(note + mid (with sign byte), 0, 127)** with the **raw MIDI note** (`$30` at `$EDBA`, used by
+  `$EF94`/`$EFB1`). A positive overflow gives `$7F`; a negative result gives 0. (Corrected by the engine port:
+  the key index `clamp(note − 33, 3, 63)` of `$ED83` is only used for VCF tracking, the velocity slot, PWM and
+  envelope keyboard tracking — not for pitch. The tuner drives the pitch slots directly and is unaffected.)
 - **PB = lo** (not clamped).
 
 Glide (`$AD30`) interpolates the same values.

@@ -86,3 +86,71 @@ export function bramWith(programs: Uint8Array[]): Uint8Array {
   b[0x0fff] = 0xaa;
   return b;
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Dynamic-engine parity (voices, envelopes, LFOs): both ROMs run in lockstep on identical key events; S&H levels
+// are sampled every few ms and compared with a level tolerance and a small time window (the two ROMs process
+// key events in their main loops, whose phase against the 3-tick control cycle differs).
+
+/** Anything with a Machine and run(ms) (MachineBackend). */
+export interface Runner { machine: Machine; run(ms: number): void; key(note: number, down: boolean, vel: number): void }
+
+/** S&H level of slot s (0..1). */
+export const level = (m: Machine, s: number) => (m.cv[s] / 16383) * (m.cvMult[s] / 255);
+
+/** Lockstep recording: `n` samples every `dtMs` ms; events[i] runs before sample i. */
+export function recordPair(a: Runner, b: Runner, n: number, dtMs: number, events: Map<number, () => void> = new Map()) {
+  const ta: number[][] = [], tb: number[][] = [];
+  for (let i = 0; i < n; i++) {
+    events.get(i)?.();
+    a.run(dtMs); b.run(dtMs);
+    ta.push(Array.from({ length: 128 }, (_, s) => level(a.machine, s)));
+    tb.push(Array.from({ length: 128 }, (_, s) => level(b.machine, s)));
+  }
+  return { a: ta, b: tb };
+}
+
+/**
+ * Every sample of trace b (NeoV8) must equal (within `tol`) a sample of trace a (stock) taken at most `w`
+ * samples earlier or later ('value'), or lie within the range of those stock samples ('range': for curves whose
+ * steps may fall at a different sub-step phase). Returns readable ranges of failing samples per slot ([] = parity).
+ */
+export function traceDiff(a: number[][], b: number[][], slots: number[], w: number, tol: number, how: 'value' | 'range' = 'value'): string[] {
+  const out: string[] = [];
+  for (const s of slots) {
+    const bad: number[] = [];
+    for (let i = Math.min(w, b.length); i < b.length - w; i++) { // (both ends: the window is one-sided)
+      let ok = false;
+      if (how === 'range') {
+        let lo = Infinity, hi = -Infinity;
+        for (let j = Math.max(0, i - w); j <= Math.min(a.length - 1, i + w); j++) { lo = Math.min(lo, a[j][s]); hi = Math.max(hi, a[j][s]); }
+        ok = b[i][s] >= lo - tol && b[i][s] <= hi + tol;
+      } else for (let j = Math.max(0, i - w); j <= Math.min(a.length - 1, i + w) && !ok; j++) ok = Math.abs(a[j][s] - b[i][s]) <= tol;
+      if (!ok) bad.push(i);
+    }
+    if (!bad.length) continue;
+    const rs: string[] = [];
+    let st = bad[0], pv = bad[0];
+    for (const x of [...bad.slice(1), -1]) { if (x !== pv + 1) { rs.push(st === pv ? `${st}` : `${st}-${pv}`); st = x; } pv = x; }
+    const i0 = bad[0];
+    out.push(`${slotName(s)} ($${s.toString(16)}) samples ${rs.join(',')} (first: stock ${a[i0][s].toFixed(4)} neo ${b[i0][s].toFixed(4)})`);
+  }
+  return out;
+}
+
+/** Key events on both machines (same physical VPK-5 timing). */
+export function keyPair(a: Runner, b: Runner, note: number, down: boolean, vel = 100) {
+  a.key(note, down, vel); b.key(note, down, vel);
+}
+
+/**
+ * Key event placed just before each machine's next VPK-5 scan (PC = its scan routine): the velocity timer then
+ * counts the same number of frames on both ROMs (a key pressed within ~40 cycles before a frame reads that key
+ * can count one frame less on one ROM: the emulated second contact closes an exact number of ticks later).
+ */
+export function keyPairSync(a: Runner, b: Runner, note: number, down: boolean, vel: number, scanA: number, scanB: number) {
+  for (const [r, pc] of [[a, scanA], [b, scanB]] as [Runner, number][]) {
+    for (let i = 0; i < 10000 && r.machine.cpu.pc !== pc; i++) r.machine.run(1);
+    r.key(note, down, vel);
+  }
+}

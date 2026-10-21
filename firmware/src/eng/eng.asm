@@ -265,6 +265,10 @@ eng_apply_perf:
         ldx #2                      ; full apply (matrix, latches, both sides)
         jmp eng_apply_prog
 
+; A program was recalled (after its eng_apply_prog): envelopes idle, keyboard CV / side gate cleared, like
+; the stock recall. eng_load_prog does it itself.
+eng_recalled:   jmp vx_recall
+
 eng_key_on:     jmp vx_key_on       ; A note, Y velocity (keyboard routing by PERF)
 eng_key_off:    jmp vx_key_off      ; A note
 eng_side_on:    jmp vx_side_on      ; X side, A note, Y velocity (MIDI)

@@ -117,6 +117,7 @@ FW_VERSION_MIN = 1
 ;        eng_side_on (X side, A note, Y vel)  eng_side_off (X side, A note)  eng_all_off
 ;        eng_a440 (A = 1 on / 0 off: 440 Hz reference tone on PTM T3)  eng_mute (A = 1 mute / 0 unmute)
 ;        eng_lowest_held (-> A = lowest key held, MIDI note, or $FF; for "hold a key + SPLIT")
+;        eng_recalled (call after the eng_apply_prog of a program RECALL: envelopes idle, kbd CV/gate cleared)
 ;        eng_ctrl (X = 0 -X, 1 +X, 2 Fc pedal, 3 pressure, 4 bend L, 6 bend R: A = value/MSB, Y = bend LSB;
 ;                  X = 8/9 damper R/L: A >= 64 = release defeat on)  eng_compare (X side, A = 1 hear stored / 0 edit buffer)
 ; ui:    ui_init  ui_key (A = button code, X = raw 8279 byte: bit6 = 1 when A440 is up)
