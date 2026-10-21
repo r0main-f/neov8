@@ -52,3 +52,14 @@ export function readCallLog(ram: Uint8Array): { id: number; a: number; x: number
 export function buildFirmware(build = 'build', stubs: string[] = []) {
   execFileSync('make', ['-C', join(ROOT, 'firmware'), `BUILD=${build}`, `DEFS=${stubs.map((s) => `-D ${s}`).join(' ')}`], { stdio: 'pipe' });
 }
+
+/** NeoV8 test-port command (firmware/src/api.inc TP_*): waits until the firmware has executed it. */
+export function tp(b: { machine: { ram: Uint8Array }; run(ms: number): void }, cmd: number, a = 0, x = 0, y = 0) {
+  const TP = 0x0ff0;
+  const ram = b.machine.ram;
+  const done = ram[TP + 4];
+  ram[TP + 1] = a; ram[TP + 2] = x; ram[TP + 3] = y; ram[TP] = cmd;
+  for (let i = 0; i < 400 && ram[TP + 4] === done; i++) b.run(5);
+  if (ram[TP + 4] === done) throw new Error(`test port command ${cmd} not executed`);
+  b.run(20);
+}

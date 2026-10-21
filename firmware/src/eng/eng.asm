@@ -6,6 +6,7 @@
 ; Internal contract: eng/ENGINE.md.
 
         .include "eng/apply.asm"
+        .include "eng/clock.asm"
 .ifdef STUB_VX
         .include "eng/stub_voice.asm"
 .else
@@ -31,43 +32,89 @@ eng_init:
         lda #60
         sta PERF+PF_SPLIT
         jsr ctl_init
+        jsr clk_init
         jsr vx_init
         jsr env_init
         jsr lfo_init
         rts
 
-; Control tick (IRQ context, interrupts enabled, never re-entered). Same 3-phase plan as the original.
+; Control tick (IRQ context, interrupts enabled, never re-entered). The stock 3-phase plan ($8127):
+;   every tick: MIDI-controller CV (1 of 8), VPK-5 key scan
+;   phase 0: 16 envelopes + ADSR->PWM + volume gate, LFO->PWM step
+;   phase 1: glide voices 4-7, LFO2 both sides, S&H refresh slice
+;   phase 2: LFO1 both sides, glide voices 0-3 (RIGHT glide off: an LFO->PWM step instead), refresh slice
 eng_tick:
-        jsr cv_refresh
         ldx en_cidx                 ; one MIDI-controller CV per tick (all 8 every 16 ms)
         jsr ctl_out
         inx
         txa
         and #7
         sta en_cidx
+        jsr clk_tick                ; arpeggiator clock, clock-out jack, tempo LED
         jsr vx_tick                 ; VPK-5 scan, key events
         ldx en_phase
         beq @p0
         dex
         beq @p1
-        ldx #1                      ; phase 2: glide RIGHT, LFO2 both sides
+        jsr lfo_tick1               ; phase 2
+        lda vx_goff
+        bmi @pw
+        ldx #0
         jsr vx_glide
-        jsr lfo_tick2
+        jmp @p2e
+@pw:    jsr lfo_pwmstep
+@p2e:   jsr eng_refresh
         lda #0
         sta en_phase
         rts
-@p1:    jsr lfo_tick1               ; phase 1: LFO1 both sides, glide LEFT
-        ldx #0
+@p1:    ldx #1                      ; phase 1
         jsr vx_glide
+        jsr lfo_tick2
+        jsr eng_refresh
         inc en_phase
         rts
-@p0:    jsr env_tick                ; phase 0: 16 envelopes, ADSR->PWM, volume gate
-        lda en_pwmalt
-        eor #1
-        sta en_pwmalt
-        tax
-        jsr lfo_pwm                 ; LFO->PWM: VCO1 (X=0) / VCO2 (X=1) alternately
+@p0:    jsr env_tick                ; phase 0
+        jsr lfo_pwmstep
         inc en_phase
+        rts
+
+; Static S&H refresh slice: the next 16 slots of cv_pa/cv_pb/cv_mul, skipping the ones the engine writes
+; itself (vx_dyn: envelopes, LFOs, modulated PWM). 32 slots per 3 ticks: every slot within 24.6 ms.
+EREF_N = 16
+eng_refresh:
+        lda #EREF_N
+        sta vx_rcnt
+        ldx vx_ridx
+@l:     lda vx_dyn,x
+        bne @sk
+        lda cv_pa,x
+        sta PIA1_PA
+        lda cv_pb,x
+        sta PIA1_PB
+        lda cv_mul,x
+        sta PIA2_PA
+        sta SH_SLOT,x
+        nop
+        sta SH_SAMPLE
+        inx                         ; sample window (~20 cycles)
+        txa
+        and #$7f
+        tax
+        nop
+        nop
+        dec vx_rcnt
+        sta SH_HOLD
+        bne @l
+        beq @e
+@sk:    inx
+        txa
+        and #$7f
+        tax
+        dec vx_rcnt
+        bne @l
+@e:     stx vx_ridx
+        lda #$ff
+        sta PIA2_PA
         rts
 
 ; Main-loop work.
@@ -105,7 +152,8 @@ eng_load_prog:
         sta (en_ptr),y
         dey
         bpl @cl
-        jmp eng_apply_prog
+        jsr eng_apply_prog
+        jmp vx_recall               ; like the original recall: envelopes idle, keyboard CV/gate cleared
 edit_lo2:   .byte <EDIT_R, <EDIT_L
 
 ; Re-apply both programs (any edit-buffer change).
@@ -115,6 +163,7 @@ eng_apply_prog:
 
 ; Performance (PERF) changed: keyboard mode, unison, octave, defeats... Re-assign and re-apply.
 eng_apply_perf:
+        jsr clk_rate
         jsr vx_apply_perf
         jmp eng_apply_prog
 

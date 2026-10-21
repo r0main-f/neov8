@@ -3,26 +3,15 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { MachineBackend } from '../src/machine/backend';
 import { snapshot, diff, randomProgram, bramWith } from '../src/machine/parity';
-import { loadStockRom, loadNeoRomFrom, buildFirmware, hasStock } from './helpers';
+import { loadStockRom, loadNeoRomFrom, buildFirmware, hasStock, tp } from './helpers';
 import type { ButtonId } from '../src/types';
 
 const BUILD = 'build-apply';
-const TP = 0x0ff0;
 
 function press(b: MachineBackend, ...ids: ButtonId[]) {
   for (const id of ids) { b.button(id, true); b.run(30); b.button(id, false); b.run(50); }
 }
 const digits = (n: number) => [`k${Math.floor(n / 10)}`, `k${n % 10}`] as ButtonId[];
-
-/** NeoV8 test port command (firmware/src/api.inc). */
-export function tp(b: MachineBackend, cmd: number, a = 0, x = 0, y = 0) {
-  const ram = b.machine.ram;
-  const done = ram[TP + 4];
-  ram[TP + 1] = a; ram[TP + 2] = x; ram[TP + 3] = y; ram[TP] = cmd;
-  for (let i = 0; i < 200 && ram[TP + 4] === done; i++) b.run(5);
-  expect(ram[TP + 4], `test port command ${cmd} completed`).not.toBe(done);
-  b.run(20);
-}
 
 /** Static slots owned by the apply layer for programs p (RIGHT) and q (LEFT). */
 function staticSlots(progR: Uint8Array, progL: Uint8Array, whole: boolean): number[] {

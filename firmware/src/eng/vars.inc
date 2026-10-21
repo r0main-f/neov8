@@ -13,6 +13,13 @@ en_pwmalt:  .res 1          ; alternates LFO->PWM VCO1 / VCO2 in phase 0
 en_mute:    .res 1          ; AUDIO MUTE: program volume 0
 en_cidx:    .res 1          ; MIDI-controller CV refresh position
 en_a440:    .res 1          ; A440 tone on
+en_aphase:  .res 1          ; arpeggiator clock level (bit 7), read by the arpeggiator note logic
+en_trate:   .res 1          ; tempo value (stock $2C)
+en_tcount:  .res 1          ; tempo countdown (stock $29)
+en_tdiv6:   .res 1          ; 6-tick divider (stock $2D)
+en_extcnt:  .res 1          ; external clock pulse countdown
+en_mclast:  .res 1          ; MIDI clock: last count seen
+en_mcacc:   .res 1          ; MIDI clock: clocks into the current step
 
         .bss
 ; ---- PWM configuration (written by apply, read by env and lfo). Index i = vco2*2 + side (vco2: 1 = VCO2).
