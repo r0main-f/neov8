@@ -9,7 +9,9 @@ INC = $(wildcard src/*.inc) $(wildcard src/*.asm) $(wildcard src/*/*.asm) $(wild
 
 all: $(BUILD)/neov8.bin $(BUILD)/neov8-8000.bin size
 
-$(OBJ): $(MAIN) $(INC) | $(BUILD)
+# Always reassemble (well under a second): the stub/define set of a bench may change between runs.
+.PHONY: $(OBJ)
+$(OBJ): | $(BUILD)
 	$(AS) --cpu 6502 -g $(DEFS) -I src -I . -l $(@:.o=.lst) -o $@ $(MAIN)
 
 $(BUILD)/neov8.bin: $(OBJ) v8.cfg

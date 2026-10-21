@@ -6,7 +6,7 @@ import { snapshot, diff, randomProgram, bramWith } from '../src/machine/parity';
 import { loadStockRom, loadNeoRomFrom, buildFirmware, hasStock } from './helpers';
 import type { ButtonId } from '../src/types';
 
-const BUILD = 'build-lead';
+const BUILD = 'build-apply';
 const TP = 0x0ff0;
 
 function press(b: MachineBackend, ...ids: ButtonId[]) {
@@ -40,7 +40,7 @@ function staticSlots(progR: Uint8Array, progL: Uint8Array, whole: boolean): numb
 describe.skipIf(!hasStock)('engine parity: program apply', () => {
   const programs = Array.from({ length: 100 }, (_, i) => randomProgram(1000 + i));
   const bram = bramWith(programs);
-  beforeAll(() => buildFirmware(BUILD, ['STUB_UI', 'STUB_MIDI', 'STUB_TUNE']));
+  beforeAll(() => buildFirmware(BUILD, ['STUB_UI', 'STUB_MIDI', 'STUB_TUNE', 'STUB_VX', 'STUB_ENV', 'STUB_LFO']));
 
   function boot(rom: Uint8Array) {
     const b = new MachineBackend('x', rom, bram);

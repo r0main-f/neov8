@@ -207,7 +207,7 @@ testport:
         jmp @done
 @c6:    cmp #6
         bne @c7
-        jsr tune_run
+        jsr autotune
         jmp @done
 @c7:    cmp #7
         bne @done
@@ -219,6 +219,19 @@ testport:
         sta TP_CMD
         inc TP_DONE
         rts
+
+; ------------------------------------------------------------------ autotune entry point
+; The one way to run the autotune (AUTO TUNE button, MIDI tune request, test port). The tuner runs with
+; interrupts off for many seconds while MIDI keeps arriving: afterwards that input is stale, so it is flushed,
+; all notes are released, and overflow counted during the tune is not reported as an error.
+autotune:
+        lda midi_rxovr
+        pha
+        jsr tune_run
+        jsr midi_flush
+        pla
+        sta midi_rxovr
+        jmp eng_all_off
 
 ; ------------------------------------------------------------------ chip init (same order as the stock ROM)
 pia_init:

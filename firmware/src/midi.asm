@@ -508,6 +508,24 @@ midi_unnib:
 ; ================================================================ main loop: parser
 ; Drains the whole RX ring each call (the stock drained one message per pass: dense-MIDI hang),
 ; then advances a background dump.
+; Discard everything received but not yet parsed, and forget any partial message (running status, pending
+; data bytes, unterminated SysEx, NRPN selection). Called after autotune: input that arrived while the CPU was
+; busy is stale (notes and their note-offs alike), and a message cut in half must not be completed by later
+; bytes. The NMI keeps receiving; only bytes already in the ring are dropped.
+midi_flush:
+        lda midi_rxwr               ; written by the NMI only: one-byte read is atomic
+        sta midi_rxrd
+        lda #0
+        sta midi_rs
+        sta midi_dn
+        sta midi_insx
+        sta midi_sxlen
+        sta midi_sxovf
+        lda #$7f
+        sta midi_nrpn               ; no NRPN selected
+        sta midi_nrpn+1
+        rts
+
 midi_poll:
 @loop:  ldx midi_rxrd
         cpx midi_rxwr
@@ -546,7 +564,7 @@ midi_byte:
         lda NV_GLOBALS+G_RX
         and #$08
         beq @r
-        jmp tune_run
+        jmp autotune                ; core wrapper: tunes, then flushes MIDI input (midi_flush)
 @chan:  sta midi_rs
         lda #0
         sta midi_dn

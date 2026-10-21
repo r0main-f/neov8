@@ -440,6 +440,7 @@ describe('MIDI SysEx', () => {
   it('tune request starts the autotune (stock), only with SysEx enabled', () => {
     const b = boot();
     send(b, [0xf6]);
-    expect(calls(b).map((c) => c.id)).toEqual([TUNE_RUN]);
+    b.run(80); // the tuner holds the CPU; the core then flushes MIDI input and releases all notes
+    expect(calls(b).map((c) => c.id)).toEqual([TUNE_RUN, 0x17]);
   });
 });

@@ -14,5 +14,6 @@ midi_nmi:
 @out:   pla
         rti
 midi_poll:      rts
+midi_flush:     rts
 midi_tx:        STUBCALL $30
 midi_note_out:  STUBCALL $31

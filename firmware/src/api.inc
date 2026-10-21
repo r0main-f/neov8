@@ -125,4 +125,7 @@ FW_VERSION_MIN = 1
 ;        controller flag)  midi_sxstat (0 ok, 1 protected, 2 malformed)  midi_sxcount  midi_mon (3 B)  midi_sxbuf/len
 ;        midi_rxovr midi_hwovr midi_txdrop (error counters). Details: docs/midi-implementation.md.
 ;        NV_GLOBALS must be initialised (defaults + NV_MAGIC) by ui_init: MIDI reads the globals directly.
-; tune:  tune_restore (boot: battery tables -> CAL + trim CVs)  tune_run (AUTO TUNE, blocking, SEI inside)
+; tune:  tune_restore (boot: battery tables -> CAL + trim CVs)  tune_run (blocking, SEI inside)
+; core:  autotune = THE way to start an autotune (UI AUTO TUNE, MIDI tune request, test port): tune_run, then
+;        midi_flush (stale MIDI input dropped, parser reset) and eng_all_off. Never call tune_run directly.
+; midi:  midi_flush (drop unparsed input, reset running status / SysEx / NRPN state)

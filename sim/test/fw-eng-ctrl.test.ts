@@ -3,10 +3,10 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { MachineBackend } from '../src/machine/backend';
 import { buildFirmware, loadNeoRomFrom, loadStockRom, hasStock } from './helpers';
 
-const BUILD = 'build-lead';
+const BUILD = 'build-ctrl';
 
 describe.skipIf(!hasStock)('MIDI controller CVs', () => {
-  beforeAll(() => buildFirmware(BUILD, ['STUB_UI', 'STUB_TUNE']));
+  beforeAll(() => buildFirmware(BUILD, ['STUB_UI', 'STUB_TUNE', 'STUB_VX', 'STUB_ENV', 'STUB_LFO']));
   const boot = (rom: Uint8Array, bram?: Uint8Array) => {
     const b = new MachineBackend('x', rom, bram);
     b.run(1500);
