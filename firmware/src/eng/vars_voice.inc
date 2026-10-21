@@ -93,6 +93,7 @@ vk_cnt:     .res 61         ; velocity timer ($C0 + ticks between the two contac
 vk_down:    .res 61         ; $80: key held (keyboard or eng_key_on)
 vk_fifo:    .res 64         ; tick -> main loop events: k | $80 on, timer
 vk_act:     .res 61         ; keys in progress (state 1/2), vk_na of them (tick only)
+vk_k:       .res 1          ; key index during the scan
 vk_seen:    .res 61         ; frame number when the first contact was last seen closed
 vk_fr:      .res 1
 vk_fw:      .res 1

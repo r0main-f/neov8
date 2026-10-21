@@ -232,7 +232,14 @@ ui_service:
 @b3:    cpx ui_bon
         beq @b4
         inc ui_redraw
-@b4:    ; periodic render
+@b4:    lda seq_mode                ; sequencer state changed (first key, stop, events): show it now
+        eor seq_run                 ; (a signature; a rare collision just waits for the periodic render)
+        eor seq_free
+        cmp ui_sq_sig
+        beq @b5
+        sta ui_sq_sig
+        inc ui_redraw
+@b5:    ; periodic render
         lda ui_rtick
         clc
         adc ui_a

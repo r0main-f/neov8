@@ -534,7 +534,17 @@ midi_poll:
         lda midi_rxbuf,x
         inx
         stx midi_rxrd
-        jsr midi_byte
+        cmp #$80                    ; fast path: SysEx data byte (bulk dumps arrive at full speed)
+        bcs @slow
+        ldx midi_insx
+        beq @slow
+        ldx midi_sxlen
+        cpx #MIDI_SXMAX
+        bcs @slow
+        sta midi_sxbuf,x
+        inc midi_sxlen
+        jmp @loop
+@slow:  jsr midi_byte
         jmp @loop
 @idle:  lda midi_dmask
         beq @r

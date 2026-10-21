@@ -95,3 +95,4 @@ ui_sq_fld:  .res 1          ; field edited by digits / FWD / REV: 0 tempo, 1 bea
 ui_sq_n:    .res 1          ; digits typed
 ui_sq_dig:  .res 4
 ui_sq_acc:  .res 2
+ui_sq_sig:  .res 1          ; signature of the engine state shown (redraw when it changes)

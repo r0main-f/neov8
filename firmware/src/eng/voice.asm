@@ -174,21 +174,6 @@ vx_isdis:
 vx_bit:     .byte $01, $02, $04, $08, $10, $20, $40, $80
 
 ; ------------------------------------------------------------------ VPK-5 keyboard, control tick
-.macro VK_KEY k
-        .local ret
-        lda VPK_A                   ; D7 = first contact closed
-        sta VPK_CLK
-        bpl ret
-        lda vk_id
-        sta vk_seen+k
-        lda vk_st+k
-        cmp #2
-        beq ret                     ; held
-        ldx #k
-        jsr vk_closed
-ret:
-.endmacro
-
 vx_tick:
         lda VPK_ACKOFF
         lda VPK_DSTR                ; frame start
@@ -204,9 +189,32 @@ vx_tick:
 vx_tscan:
 .endif
         inc vk_id
-        .repeat 61, I
-        VK_KEY (60-I)
+        ldx #48                     ; 61 keys top first (stock $B053: X = 60..0), 16 per pass: keys X+15..X,
+        jmp vk_e12                  ; the first pass enters at key 60 (X+12)
+vk_blk:
+        .repeat 16, I
+        .if (15-I) = 12
+vk_e12:
+        .endif
+        lda VPK_A                   ; D7 = first contact closed
+        sta VPK_CLK
+        bpl :+
+        lda vk_id
+        sta vk_seen+15-I,x
+        lda vk_st+15-I,x
+        cmp #2
+        beq :+                      ; held
+        ldy #15-I
+        jsr vk_hit
+:
         .endrepeat
+        txa
+        sec
+        sbc #16
+        tax
+        bmi @done
+        jmp vk_blk
+@done:
         ; keys in progress whose first contact was not seen closed in this frame: released
         ldy vk_na
 @a:     dey
@@ -235,7 +243,18 @@ vx_tend:
         lda VPK_ASTR
         rts
 
-; Key X has its first contact closed in this frame.
+; scan: key X + Y (not held) has its first contact closed. X preserved.
+vk_hit: stx vk_k
+        tya
+        clc
+        adc vk_k
+        tax
+        lda vk_st,x
+        jsr vk_closed
+        ldx vk_k
+        rts
+
+; Key X has its first contact closed in this frame (A = its state).
 vk_closed:
         cmp #0
         beq @new

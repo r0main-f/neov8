@@ -169,7 +169,9 @@ export class Machine {
   keyDown(note: number, velocity: number) {
     if (note < 36 || note > 96) return;
     const ticks = 1 + Math.round(((127 - Math.max(1, Math.min(127, velocity))) / 126) * 40);
-    this.vpk.set(note, { t: this.cpu.cycles, delay: ticks * 4097 });
+    // second contact half a tick before the ticks-th scan: the same count as a scan exactly on the boundary,
+    // but a few cycles of jitter in the tick (code placement, page crossings) cannot move it by a whole tick
+    this.vpk.set(note, { t: this.cpu.cycles, delay: Math.round((ticks - 0.5) * 4097) });
   }
   keyUp(note: number) { this.vpk.delete(note); }
 

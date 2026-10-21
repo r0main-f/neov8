@@ -157,7 +157,8 @@ function take(st: MachineBackend, ne: MachineBackend, perf: Ev[], ms: number) {
   st.run(300); ne.run(300);
 }
 /** Playback timelines (pitch of every voice, VCA envelopes) for `ms` from now. */
-function sameSound(st: MachineBackend, ne: MachineBackend, ms: number, ev?: Map<number, () => void>, env = true) {
+/** `win`: samples (2 ms) each side in which a NeoV8 voice key must match a stock one (default 10 ms). */
+function sameSound(st: MachineBackend, ne: MachineBackend, ms: number, ev?: Map<number, () => void>, env = true, win = 5) {
   const n = Math.round(ms / 2);
   const ka: number[][] = [], kb: number[][] = [];
   const evk = new Map<number, () => void>();
@@ -166,8 +167,8 @@ function sameSound(st: MachineBackend, ne: MachineBackend, ms: number, ev?: Map<
   // voice keys (note | key down), per voice: every NeoV8 value is a stock value of that voice within 10 ms
   const kd: string[] = [];
   for (let v = 0; v < 8; v++) {
-    for (let i = 5; i < n - 5 && kd.length < 3; i++) {
-      if (!ka.slice(i - 5, i + 6).some((k) => k[v] === kb[i][v])) kd.push(`voice ${v} key @${i * 2} ms: neo ${kb[i][v].toString(16)}, stock ${ka[i][v].toString(16)}`);
+    for (let i = win; i < n - win && kd.length < 3; i++) {
+      if (!ka.slice(i - win, i + win + 1).some((k) => k[v] === kb[i][v])) kd.push(`voice ${v} key @${i * 2} ms: neo ${kb[i][v].toString(16)}, stock ${ka[i][v].toString(16)}`);
     }
   }
   return [...kd, ...traceDiff(a, b, VOICE_SLOTS, 10, 0.002), ...(env ? traceDiff(a, b, ENV_SLOTS, 10, 0.004, 'range') : [])];
@@ -209,7 +210,8 @@ describe.skipIf(!hasStock)('polysequencer', () => {
     expect(peek(ne, 'seq_len', 2)).toBe(PERF.length);
     sw(st, ne, 'play2');
     startBoth(st, ne);
-    expect(sameSound(st, ne, 2200)).toEqual([]);
+    // the two takes may differ by 2 clocks (10.6 ms at 118 BPM, no quantize), so their playbacks by as much
+    expect(sameSound(st, ne, 2200, undefined, true, 7)).toEqual([]);
   });
 
   it('instant record with the metronome: start on the beat, nothing cut, same clicks (PIA2 CB2)', () => {
@@ -482,6 +484,27 @@ describe('polysequencer, NeoV8 additions', () => {
     expect([...b.machine.ram.slice(S.seq_len, S.seq_len + 4)]).toEqual([...a.machine.ram.slice(S.seq_len, S.seq_len + 4)]);
     expect(peek(b, 'seq_len')).toBe(6);
     expect(peek(b, 'seq_len', 2)).toBe(4);
+  });
+
+  it('every T1 underflow becomes one clock event, also with keys played during a long take', () => {
+    const ne = neo();
+    const ptm = ne.machine.ptm as any;
+    let under = 0;
+    const orig = ptm.count.bind(ptm);
+    ptm.count = (t: number, cycles: number) => {
+      if (t === 0 && cycles > 0 && !(ptm.cr[0] & 4)) {
+        const c = ptm.counter[0] - cycles;
+        if (c < 0) under += Math.floor((-c - 1) / (ptm.latch[0] + 1)) + 1;
+      }
+      orig(t, cycles);
+    };
+    let clocks = 0;
+    ne.machine.cpu.onStep = (pc: number) => { if (pc === S.seq_clock) clocks++; };
+    poke(ne, 'seq_rec', 2); poke(ne, 'seq_inst', 1); startstop(ne);
+    const u0 = under, c0 = clocks;
+    for (let i = 0; i < 40; i++) { ne.key(48 + (i % 12), true, 30 + (i * 7) % 90); ne.run(37); ne.key(48 + (i % 12), false, 0); ne.run(18); }
+    expect(under - u0).toBeGreaterThan(400);
+    expect(clocks - c0 + peek(ne, 'seq_cpend')).toBe(under - u0);
   });
 
   it('a loaded track of zero length does not hang the IRQ: the sequencer stops', () => {

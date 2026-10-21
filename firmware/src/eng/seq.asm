@@ -1286,10 +1286,13 @@ sq_dstep:                           ; one message when the TX ring has room (seq
 seq_sysex:
         jsr midi_ctlok
         bcc @r
+        lda seq_run                 ; stop the sequencer (and its clock) once, not on every block: a full-
+        ora sq_clkon                ; speed dump leaves the main loop no time for a key resync per message
+        beq @h
         jsr cv_lock
         jsr sq_halt
         jsr cv_unlock
-        lda midi_sxbuf+1
+@h:     lda midi_sxbuf+1
         lsr                         ; C = 1: $25
         bcs @end
         lda #1
