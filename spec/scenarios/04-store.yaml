@@ -1,0 +1,68 @@
+# Compare, store (arm -> destination -> commit), memory protect, undo.
+- name: compare toggles between the edited and the stored sound
+  steps:
+    - press: edit
+    - press: kb_split
+    - wait: 2000
+    - press: [a440, store]
+    - expect: {display: "CP0100", state: {compare: R}, leds: {store: blink}}
+    - press: [a440, store]
+    - expect: {display: "r10100", state: {compare: null}}
+
+- name: store to another number, then undo it
+  steps:
+    - press: edit
+    - press: kb_split
+    - press: store
+    - expect: {display: "St01 r", leds: {store: blink}}
+    - press: k0
+    - press: k7
+    - expect: {display: "St07 r"}
+    - press: store
+    - expect: {display: "StOrEd", state: {progR: 7, editedR: false, undo: 7}}
+    - wait: 2000
+    - expect: {display: "r10700"}
+    - press: [a440, store]
+    - expect: {display: "UndO07"}
+    - press: store
+    - expect: {display: "UndOnE", state: {undo: null}}
+
+- name: memory protect refuses the store
+  steps:
+    - protect: true
+    - press: edit
+    - press: kb_split
+    - press: store
+    - press: store
+    - expect: {display: "PrOtEC", state: {editedR: true}}
+
+- name: EDIT cancels a store in progress
+  steps:
+    - press: store
+    - press: edit
+    - expect: {display: "CAnCEL"}
+    - wait: 2000
+    - expect: {display: "000100", mode: play}
+
+- name: A440+CALL L loads the null program into the left edit buffer
+  steps:
+    - press: call_l
+    - press: k0
+    - press: k1
+    - press: [a440, call_l]
+    - expect: {display: "InIt L", state: {editedL: true}}
+
+- name: storing a step keeps the whole performance
+  steps:
+    - press: kb_layer
+    - press: step_load
+    - expect: {display: "St00SP"}
+    - press: k1
+    - press: k5
+    - press: store
+    - expect: {state: {step: 15}}
+    - press: kb_whole
+    - press: step_enable
+    - press: k1
+    - press: k5
+    - expect: {state: {step: 15}, leds: {kb_layer: "on"}}

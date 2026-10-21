@@ -1,0 +1,56 @@
+# ---- Panel / front-end I/O annotations (fork B) ----
+# 8279 key FIFO + dispatch
+LABEL { NAME "kbd_fifo_poll";     ADDR $F70A; COMMENT "main loop: read one 8279 FIFO entry, translate RL*8+SL via KEYTAB, dispatch"; };
+LABEL { NAME "key_dispatch";      ADDR $F73E; COMMENT "A=button code 0..58: page-flag dispatch, else JMP ($A2) into BTN_GROUP_JT"; };
+LABEL { NAME "key_split_code";    ADDR $F782; COMMENT "$0606=code, $0601=code&7, $A2=(code&$38)>>1"; };
+LABEL { NAME "key_done";          ADDR $F6F7; COMMENT "end of key handler: clear digit-entry, $0602=$FF, refresh display"; };
+LABEL { NAME "BTN_GROUP_JT";      ADDR $F000; SIZE 64; COMMENT "JMP+NOP x16: handler per code group (code>>3); $F020.. = group 3 sub-table"; };
+LABEL { NAME "btn_kbdmode";       ADDR $F618; COMMENT "codes 0-6: UNISON L/R, SPLIT, LAYER, HOLD L/R, WHOLE"; };
+LABEL { NAME "btn_digits";        ADDR $F272; COMMENT "codes 8-21: digits 0-9, REV, FWD, $14/$15 glide-defeat toggles"; };
+LABEL { NAME "btn_group3";        ADDR $F268; COMMENT "codes 24-31 -> JMP ($A4) via $F020 table"; };
+LABEL { NAME "btn_call_step";     ADDR $F1F3; COMMENT "codes 32-35: CALL R, CALL L, STEP ENABLE, STEP LOAD (A440: init/alt page)"; };
+LABEL { NAME "btn_pbdef_a440";    ADDR $F17B; COMMENT "codes 40-43: PB DEF R/L ($6400/$6401), A440 tone, AUDIO MUTE"; };
+LABEL { NAME "btn_reldef_arp";    ADDR $F11F; COMMENT "codes 48-52: REL DEF R/L, ARP R/L, PAUSE"; };
+LABEL { NAME "btn_arpmode";       ADDR $F090; COMMENT "codes 56-58: ARP DOWN, RANDOM, UP (A440: MIDI page / Set page)"; };
+LABEL { NAME "btn_oct";           ADDR $F7BC; COMMENT "codes 24/25: OCT R/L cycle; A440: toggle octave-jump $1E,X"; };
+LABEL { NAME "btn_autotune";      ADDR $F793; COMMENT "code 30: AUTO TUNE; with A440 acts as code $2A (A440 tone)"; };
+LABEL { NAME "btn_store";         ADDR $F7A4; COMMENT "code 28: STORE (JSR $A00F)"; };
+LABEL { NAME "oct_cycle";         ADDR $FBFE; COMMENT "$15,X = ($15,X+1) mod 3, update octave LEDs"; };
+LABEL { NAME "split_find_key";    ADDR $F6D8; COMMENT "scan $0200..$023B for a held key (split point)"; };
+LABEL { NAME "KEYTAB";            ADDR $A0BD; SIZE 48; COMMENT "8279 key translate: index RL*8+SL -> button code ($FF = none)"; };
+LABEL { NAME "EDIT_KEYTAB";       ADDR $AB80; SIZE 59; COMMENT "edit pages: button code -> edit function/switch index"; };
+LABEL { NAME "EDIT_LEDTAB";       ADDR $ABBB; SIZE 32; COMMENT "edit pages: LED bit -> switch index in $04C0 ($FF = off)"; };
+LABEL { NAME "EDIT_DISPKIND";     ADDR $ABDB; SIZE 10; };
+RANGE { START $A0BD; END $A0EC; TYPE ByteTable; };
+RANGE { START $AB80; END $ABE4; TYPE ByteTable; };
+# display
+LABEL { NAME "SEGFONT";           ADDR $A080; SIZE 16; COMMENT "7-seg font 0-F; bit7=a 6=c 5=f 4=b 3=e 2=d 1=g 0=dp"; };
+LABEL { NAME "DISP_WINSIDE";      ADDR $A090; SIZE 3; COMMENT "digit pair order: side 1(L) @1-2, side 0(R) @4-5, 2(STEP) @7-8"; };
+LABEL { NAME "DISP_KIND";         ADDR $A093; SIZE 10; COMMENT "display RAM 0..9: $00 = LED byte, $FF = digit"; };
+LABEL { NAME "LEDTAB";            ADDR $A09D; SIZE 32; COMMENT "zero-page flag per LED bit (MSB first) for display RAM 0,3,6,9"; };
+RANGE { START $A080; END $A0BC; TYPE ByteTable; };
+LABEL { NAME "disp_normal";       ADDR $A2CA; COMMENT "Normal page: rewrite 8279 display RAM 0..9 from $50-$53,$0458.. and LED flags"; };
+LABEL { NAME "disp_edit";         ADDR $AB09; COMMENT "Edit pages: rewrite display RAM 0..9 from $04F4/$04FA and $04C0 switch states"; };
+LABEL { NAME "disp_seq";          ADDR $842E; COMMENT "sequencer page display"; };
+LABEL { NAME "disp_setpage";      ADDR $870F; COMMENT "Set page (A440+RANDOM) display"; };
+LABEL { NAME "disp_autotune";     ADDR $C68E; COMMENT "autotune progress: $047A in STEP window, AUTO TUNE LED"; };
+LABEL { NAME "led_clear_step";    ADDR $A379; COMMENT "clear step/panel flags $54-$73 except $5D,$5E,$5F,$65"; };
+LABEL { NAME "oct_led_set";       ADDR $A292; COMMENT "octave LED flag $6E + 2*$15,X + X := A"; };
+# pots
+LABEL { NAME "pot_scan";          ADDR $E1AB; COMMENT "main loop: one pot conversion per call (rate-limited by $0637)"; };
+LABEL { NAME "pot_init_all";      ADDR $E692; COMMENT "boot: read all 16 mux channels into $0710..$071F"; };
+LABEL { NAME "pot_mux_select";    ADDR $E685; COMMENT "strobe slot $7F, then shift A bits into latch $6400-$6407"; };
+LABEL { NAME "adc_sar8";          ADDR $CE4E; COMMENT "8-bit SAR ADC: DAC bits on PIA1 PA0-6 + PB7, comparator on PIA1 PB0 -> $0707"; };
+LABEL { NAME "pot_trim_dispatch"; ADDR $E2DC; COMMENT "Normal page: pot index -> program byte / arp speed"; };
+LABEL { NAME "POT_MUXTAB";        ADDR $E0CB; SIZE 16; COMMENT "pot index 0..15 -> pot mux channel"; };
+LABEL { NAME "POT_PARMTAB";       ADDR $E0DB; SIZE 14; COMMENT "pot -> program byte offset (+$40 = L buffer)"; };
+RANGE { START $E0CB; END $E0E8; TYPE ByteTable; };
+# VPK-5 keyboard
+LABEL { NAME "vpk_hdr_bits";      ADDR $FC4F; COMMENT "every 5th tick: 7 header clocks, sample VPK-5 REV/FWD buttons ($2805/$2806 D7)"; };
+LABEL { NAME "vpk_btn_debounce";  ADDR $FC80; };
+LABEL { NAME "vpk_buttons";       ADDR $FCAC; COMMENT "main loop: VPK-5 buttons -> codes $12/$13 (REV/FWD) with repeat"; };
+LABEL { NAME "vpk_scan";          ADDR $B053; COMMENT "per tick: 61 keys, X=60..0, D7 of $2805 then clock; velocity via $2806"; };
+LABEL { NAME "vpk_key_event";     ADDR $B116; COMMENT "key on/off event, note=(X^$3F)+$21"; };
+# footswitches / misc
+LABEL { NAME "footsw_press";      ADDR $F9D7; };
+LABEL { NAME "tape_bit_in";       ADDR $C993; COMMENT "tape input on PIA2 PB6, period via PTM T2"; };

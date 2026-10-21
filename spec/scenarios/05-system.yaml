@@ -1,0 +1,58 @@
+# SYSTEM menu (replaces Alternate / Set / Velocity / MIDI pages).
+- name: A440+EDIT opens the menu, FWD/REV walk items, digits jump, A440+FWD changes the value, EDIT leaves
+  steps:
+    - press: [a440, edit]
+    - expect: {mode: menu, display: "10cL02", leds: {edit: blink}}
+    - press: fwd
+    - expect: {display: "11cr01"}
+    - press: [a440, fwd]
+    - expect: {display: "11cr02", state: {globals: {midiChR: 2}}}
+    - press: k3
+    - expect: {display: "3-cr02"}
+    - press: k1
+    - expect: {display: "31trtr"}
+    - press: edit
+    - expect: {mode: play}
+
+- name: Rev4 chords still lead to the matching menu group
+  steps:
+    - press: [a440, arp_down]
+    - expect: {mode: menu, display: "10cL02"}
+    - press: edit
+    - press: [a440, arp_random]
+    - expect: {display: "40F034"}
+    - press: edit
+    - press: [a440, step_enable]
+    - expect: {display: "50ACIn"}
+
+- name: the ARP SPEED pot is the data-entry knob in the menu
+  steps:
+    - press: [a440, edit]
+    - pot: {arp_speed: 1023}
+    - expect: {display: "10cL16", state: {globals: {midiChL: 16}}}
+
+- name: voice disable (menu 90) toggles voices with the keypad
+  steps:
+    - press: [a440, edit]
+    - press: k9
+    - press: k0
+    - expect: {display: "90Ud08"}
+    - press: k3
+    - press: k7
+    - expect: {display: "90U7oF", state: {globals: {voiceMask: 136}}}
+    - wait: 1500
+    - expect: {display: "90Ud06"}
+
+- name: reset globals needs YE + STORE and keeps the voice mask
+  steps:
+    - press: [a440, edit]
+    - press: [a440, fwd]         # MIDI ch L 2 -> 3
+    - press: k9
+    - press: k9
+    - press: store
+    - expect: {display: "rG  no"}
+    - wait: 1500
+    - press: [a440, fwd]
+    - expect: {display: "99rGYE"}
+    - press: store
+    - expect: {display: "rESEt ", state: {globals: {midiChL: 2}}}

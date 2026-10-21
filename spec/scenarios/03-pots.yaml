@@ -1,0 +1,24 @@
+# Pot modes: pickup (default), jump, relative.
+- name: pickup - the pot does nothing until it passes the stored value, and shows which way to turn
+  steps:
+    - press: edit
+    - press: fwd                 # page 2: l_a = VCF cutoff (demo program 01: 60)
+    - pot: {l_a: 0}
+    - expect: {display: "Fc‾ 60", param: {side: R, id: vcf_fc, raw: 60}}
+    - pot: {l_a: 1023}
+    - expect: {display: "Fc 127"}
+    - pot: {l_a: 512}
+    - expect: {display: "Fc  64", param: {side: R, id: vcf_fc, raw: 64}}
+
+- name: jump - the value follows the pot at once
+  steps:
+    - press: [a440, edit]
+    - press: k3
+    - press: k0
+    - press: [a440, fwd]         # pot mode PU -> JP
+    - expect: {display: "30PnJP"}
+    - press: edit
+    - press: edit                # into EDIT
+    - press: fwd
+    - pot: {l_a: 0}
+    - expect: {display: "Fc   0", param: {side: R, id: vcf_fc, raw: 0}}

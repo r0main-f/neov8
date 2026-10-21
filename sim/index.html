@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NeoV8 Simulator</title>
+  </head>
+  <body>
+    <header>
+      <h1>NeoV8 <span>Voyetra Eight Rev4 · front-panel simulator</span></h1>
+      <div class="tools">
+        <label>Back end
+          <select id="backend">
+            <option value="proto" selected>NeoV8 prototype (navigation)</option>
+            <option value="machine">Machine: stock Rev4 ROM (emulated 6502)</option>
+            <option value="neo">Machine: NeoV8 firmware (work in progress)</option>
+          </select>
+        </label>
+        <label>Labels
+          <select id="overlay">
+            <option value="neo" selected>NeoV8 overlays</option>
+            <option value="rev4">Rev4 overlays</option>
+          </select>
+        </label>
+        <label class="chk"><input type="checkbox" id="protect" /> Memory protect</label>
+        <label>Velocity <input type="range" id="velocity" min="1" max="127" value="100" /></label>
+        <button id="midi">Connect MIDI keyboard</button>
+        <button id="import">Load .syx</button>
+        <a id="download" hidden>Save dump (.syx)</a>
+        <input type="file" id="syxfile" accept=".syx,.mid,.bin" hidden />
+        <button id="reset" class="danger">Erase sim memory</button>
+      </div>
+    </header>
+    <main>
+      <div class="left">
+        <div id="panel"></div>
+        <div id="keyboard"></div>
+        <div id="footsw" class="footsw">Footswitches (hold):
+          <button data-fs="0">B-L</button><button data-fs="1">B-R</button><button data-fs="2">A-L</button><button data-fs="3">A-R</button>
+          <button data-fs="4">REV jack</button><button data-fs="5">FWD jack</button>
+          <span class="hint">emulated machine only</span>
+        </div>
+        <div id="status">Click buttons, drag knobs (up/down; Shift = fine), right-click a button to latch it (for chords).</div>
+        <details class="help" open>
+          <summary>Quick reference</summary>
+          <div class="cols">
+            <div>
+              <h4>Play (Normal page)</h4>
+              <ul>
+                <li><b>CALL L / CALL R</b> + 2 digits: recall a program. <b>FWD/REV</b>: browse ±1.</li>
+                <li><b>CALL STEP (ENABLE)</b> + 2 digits: recall a performance step.</li>
+                <li><b>EDIT</b>: edit the side you last called. <b>EDIT</b> again: back.</li>
+                <li><b>STORE</b> → digits/FWD/REV pick destination → <b>STORE</b> commits, <b>EDIT</b> cancels.</li>
+                <li><b>A440+STORE</b>: compare when edited, otherwise undo the last store.</li>
+                <li><b>A440+CALL</b>: init (null) program. <b>A440+EDIT</b>: SYSTEM menu.</li>
+                <li>Hold <b>SPLIT</b> and press a key: split point.</li>
+              </ul>
+            </div>
+            <div>
+              <h4>Edit</h4>
+              <ul>
+                <li>Pages 1, 2, A, B, C, D: <b>FWD/REV</b>, or <b>EDIT + 1..6</b> (right-click EDIT to latch, then click a digit).</li>
+                <li>Touching any control shows its name + value. Decimal point on the program number = edited.</li>
+                <li>Pickup: <b>‾</b> = turn up, <b>_</b> = turn down until the knob catches the stored value.</li>
+                <li><b>A440+FWD/REV</b>: ±1 on the last touched parameter.</li>
+                <li><b>CALL L / R</b>: switch the edited side.</li>
+              </ul>
+            </div>
+            <div>
+              <h4>Computer keyboard</h4>
+              <ul>
+                <li>Notes: <code>Z S X D C V G B H N J M ,</code> (←/→ octave)</li>
+                <li>Keypad <code>0-9</code>, FWD <code>]</code>, REV <code>[</code></li>
+                <li>EDIT <code>Esc</code>, STORE <code>Enter</code>, A440/SHIFT <code>Shift</code></li>
+                <li>CALL L <code>Q</code>, CALL R <code>W</code>, CALL STEP <code>E</code>, STORE STEP <code>R</code></li>
+                <li>SPLIT <code>T</code>, WHOLE <code>Y</code>, LAYER <code>U</code></li>
+              </ul>
+            </div>
+          </div>
+          <p class="note">Programs 01–04 are a small synthetic demo bank, not the factory sounds. There is no audio yet: watch the display, LEDs and the inspector.</p>
+        </details>
+      </div>
+      <aside id="inspector"></aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

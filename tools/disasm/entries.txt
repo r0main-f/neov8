@@ -1,0 +1,39 @@
+# Code entry points for trace.py (hex). JT = JMP table (addr, count); JT4 = JMP+NOP table.
+JT 8000 5
+JT 8900 7
+JT 9000 7
+JT 9800 11
+JT A000 40
+JT A800 6
+JT AB67 8
+JT B00B 22
+JT B800 16
+JT C000 3
+JT C800 19
+JT DA00 16
+JT E000 18
+JT E80E 2
+JT4 F000 16
+JT F050 8
+JT F800 15
+WTAB 9B6F 25
+JT 8920 7
+JT 8940 7
+JT 8960 7
+JT 8980 7
+JT 89A0 7
+JT 89C0 7
+JT 89E0 7
+# shift/delay helper chains entered at various offsets (unreferenced heads)
+857D
+8582
+95DD
+95E2
+A6A9
+AD24
+CFAC
+E464
+E46A
+ED3A
+E6CD
+BC29

@@ -1,0 +1,23 @@
+{
+  "name": "neov8",
+  "private": true,
+  "version": "0.1.0",
+  "description": "NeoV8 - a new operating system for the Voyetra Eight Rev4, with a browser front-panel simulator",
+  "type": "module",
+  "scripts": {
+    "gen": "node tools/gen-params.mjs",
+    "dev": "npm run gen && npm run roms && npm run fw && vite sim --open",
+    "build": "npm run gen && vite build sim",
+    "test": "npm run gen && npm run fw && vitest run",
+    "typecheck": "npm run gen && tsc --noEmit -p sim",
+    "roms": "node tools/rom/extract-roms.mjs",
+    "fw": "node tools/gen-font.mjs && make -C firmware"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5",
+    "vitest": "^3.2.7",
+    "yaml": "^2.9.1"
+  }
+}

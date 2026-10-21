@@ -1,0 +1,1 @@
+; ui stub: no variables

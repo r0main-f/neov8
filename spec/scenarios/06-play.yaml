@@ -1,0 +1,36 @@
+# Performance features on the Normal page.
+- name: hold SPLIT and press a key to set the split point (note name shown)
+  steps:
+    - down: kb_split
+    - key: {note: 48}
+    - up: kb_split
+    - expect: {display: "SP  C3", state: {perf: {split: 48, kbMode: split}}, leds: {kb_split: "on"}}
+
+- name: in split mode notes go to the left voices (4-7) or right voices (0-3)
+  steps:
+    - down: kb_split
+    - key: {note: 60}
+    - up: kb_split
+    - key: {note: 40}
+    - key: {note: 72}
+    - expect: {voices: {4: 40, 0: 72}}
+
+- name: autotune shows progress then oK
+  steps:
+    - press: autotune
+    - wait: 130
+    - expect: {display: "tU12  ", leds: {autotune: blink}}
+    - wait: 2000
+    - expect: {display: "tU  oK"}
+
+- name: TAPE DUMP now sends all programs as SysEx after confirmation
+  steps:
+    - press: tape_dump
+    - expect: {display: "SEnd ?"}
+    - press: store
+    - expect: {display: "SEnt  ", midiOut: 9600}
+
+- name: A440+OCT sets the arpeggiator octave range
+  steps:
+    - press: [a440, oct_l]
+    - expect: {display: "Ao  L2", state: {perf: {arpOctL: 2}}}

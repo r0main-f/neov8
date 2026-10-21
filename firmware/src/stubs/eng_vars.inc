@@ -1,0 +1,1 @@
+; eng stub: no variables

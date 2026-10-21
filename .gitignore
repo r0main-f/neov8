@@ -1,0 +1,11 @@
+node_modules/
+sim/dist/
+firmware/build*/
+tools/rom/build/
+tools/disasm/build/
+.DS_Store
+__pycache__/
+firmware/gen/
+
+# source material (copyrighted manuals, schematics, ROM dumps) - never committed
+Voyetra 8 synths/

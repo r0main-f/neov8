@@ -1,0 +1,45 @@
+# Recalling programs and steps from the Normal page (PLAY layer).
+- name: power-on home view shows L program, R program, step
+  steps:
+    - expect: {display: "000100", mode: play, state: {focus: R}}
+
+- name: CALL L + two digits recalls a program on the left side
+  steps:
+    - press: call_l
+    - expect: {display: "--0100", displayBlink: "110000"}
+    - press: k4
+    - expect: {display: "4-0100"}
+    - press: k2
+    - expect: {display: "420100", dp: "100000", state: {progL: 42, focus: L}}   # focus = DP on the tens digit (no LEDs on CALL)
+
+- name: digits act on the focused side without pressing CALL again
+  steps:
+    - press: call_r
+    - press: k0
+    - press: k3
+    - press: k1
+    - press: k2
+    - expect: {display: "001200", state: {progR: 12}}
+
+- name: FWD/REV browse the focused side immediately
+  steps:
+    - press: fwd
+    - expect: {state: {progR: 2}}
+    - press: rev
+    - press: rev
+    - press: rev
+    - expect: {state: {progR: 99}, display: "009900"}
+
+- name: an unfinished entry times out and leaves the program unchanged
+  steps:
+    - press: call_l
+    - press: k7
+    - wait: 4500
+    - expect: {display: "000100", state: {progL: 0}}
+
+- name: EDIT cancels a pending entry
+  steps:
+    - press: call_l
+    - press: k7
+    - press: edit
+    - expect: {display: "000100", mode: play}

@@ -1,0 +1,58 @@
+# EDIT layer: entering, page navigation, value-on-touch, edited flag.
+- name: EDIT enters page 1 of the focused side and EDIT again leaves
+  steps:
+    - press: call_l
+    - press: k4
+    - press: k2
+    - press: edit
+    - expect: {mode: edit, page: P1, display: "L14200", leds: {edit: "on"}}
+    - press: edit
+    - expect: {mode: play, display: "420100"}
+
+- name: a parameter button shows its name and value, then the edited flag stays
+  steps:
+    - press: edit
+    - press: kb_split            # SYNC on page 1
+    - expect: {display: "SY  On", leds: {kb_split: "on"}, state: {editedR: true}}
+    - wait: 2000
+    - expect: {display: "r10100", dp: "010010"}   # edited = DP after the page id; STEP shows PWM1, PWM2 sources (DP = selected)
+
+- name: FWD/REV step through the six pages, EDIT+digit jumps
+  steps:
+    - press: edit
+    - press: fwd
+    - expect: {page: P2, display: "r20100"}
+    - press: fwd
+    - expect: {page: A, display: "rAL100"}       # mod page: RIGHT = source (null program: LFO1), STEP = depth hex
+    - press: [edit, k6]
+    - expect: {page: D, mode: edit}
+    - press: [edit, k1]
+    - expect: {page: P1}
+    - press: rev
+    - expect: {page: D}
+
+- name: keypad selects an enum value on the page (PWM source, LFO wave, mod source)
+  steps:
+    - press: edit
+    - press: step_enable         # PWM VCO2
+    - press: k2                  # ADSR1
+    - expect: {display: "2S  E1", param: {side: R, id: vco2_pwm_src, raw: 2}}
+    - wait: 2000
+    - expect: {display: "r10102"}
+
+- name: CALL R/L switches the edited side inside EDIT
+  steps:
+    - press: call_l
+    - press: edit
+    - expect: {display: "L10000"}
+    - press: call_r
+    - expect: {display: "r10100", state: {editSide: R}}
+
+- name: A440+FWD nudges the last touched parameter by one
+  steps:
+    - press: [edit, k3]          # mod bank A
+    - pot: {l_a: 1023}           # depth coarse -> 252 (21*12)
+    - expect: {param: {side: R, id: modA_depth, raw: 252}}
+    - press: [a440, fwd]
+    - press: [a440, fwd]
+    - expect: {param: {side: R, id: modA_depth, raw: 254}, display: "dP 254"}

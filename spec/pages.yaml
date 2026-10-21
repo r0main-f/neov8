@@ -1,0 +1,148 @@
+# NeoV8 edit pages: what every button / pot does on each page.
+# Taken from the Rev4 Reference Guide overlays (v8_Rev 4 ref.pdf p.6, 8, 10) so Rev4 owners keep
+# their muscle memory. NeoV8 changes navigation (sec. 2 of the plan), not the page contents.
+#
+# Control binding kinds:
+#   param: <id>                     button = toggle a 1-bit param (respects activeLow) ; pot = absolute value
+#   onWhen: 0|1                     for 1-bit params that are not "active low" flags: raw bit value that means ON
+#   field: {param, bit, onWhen}     button toggles one bit inside a multi-bit field (ADSR mode ADR/UNCOND, taper A/B)
+#   select: {var, value}            button selects which target the keypad edits (PWM 1/2, LFO 1/2)
+#   keypad: {var, targets, keys}    digits pick an enum value for the selected target
+#   pot modes: fine (relative +-1 per step on the param), coarse12 / fine12 (value = 12*coarse + fine:
+#              mod depth COARSE/FINE, VCO OCTAVE/SEMI)
+# Mod pages A-D use the template `mod` with {b} = bank letter.
+#
+# `label` = overlay text (what the printed overlay shows near the control).
+
+pages:
+  - id: P1
+    title: Page 1 - VCO
+    disp: "1"          # page glyph shown next to the side letter (L1 / r1)
+    buttons:
+      kb_whole:  {param: vco1_bypass,  label: BYPASS VCF}
+      kb_split:  {param: vco_sync,     label: SYNC}
+      kb_layer:  {param: linear_fm,    label: LINEAR FM}
+      uni_l:     {param: lfo1_kbd_trk, label: LFO1 TRK FULL}
+      uni_r:     {param: lfo1_half_trk,label: LFO1 TRK HALF}
+      step_load:   {select: {var: pwm, value: 1}, label: PWM VCO1}
+      step_enable: {select: {var: pwm, value: 2}, label: PWM VCO2}
+      arp_up:     {param: vco1_pulse,   label: VCO1 PULSE}
+      arp_down:   {param: vco1_saw,     label: VCO1 SAW}
+      arp_random: {param: vco1_kbd_trk, onWhen: 1, label: DISABLE KBD}
+      arp_left:   {param: vco1_sub,     label: VCO1 SUB OCT}
+      arp_pause:  {param: vco1_tri,     label: VCO1 TRI}
+      arp_right:  {param: pwm1_kbd_trk, label: PWM1 KBD TRK}
+      reldef_l:   {param: vco2_pulse,   label: VCO2 PULSE}
+      pbdef_l:    {param: vco2_saw,     label: VCO2 SAW}
+      reldef_r:   {param: vco2_sub,     label: VCO2 SUB OCT}
+      pbdef_r:    {param: vco2_tri,     label: VCO2 TRI}
+      hold_r:     {param: pwm2_kbd_trk, label: PWM2 KBD TRK}
+    keypad:
+      var: pwm
+      targets: {1: vco1_pwm_src, 2: vco2_pwm_src}
+      keys: {0: 0, 1: 1, 2: 2, 3: 3}            # 0 LFO1, 1 LFO2, 2 ADSR1, 3 ADSR2 (overlay legends)
+      label: PWM SOURCE 0 LFO1 1 LFO2 2 ADSR1 3 ADSR2
+    window: {var: pwm, show: both}             # STEP window: PWM1 source digit, PWM2 source digit; DP = the one the keypad edits
+    pots:
+      l_a:      {param: vco1_vol,       label: VCO1 VOLUME}
+      l_r:      {param: vco1_pwm_depth, label: VCO1 PWM DEPTH}
+      l_lfo:    {param: vco1_init_pw,   label: VCO1 INIT PW}
+      l_glide:  {param: vco1_freq, mode: coarse12, label: VCO1 OCTAVE}   # manual p.42: OCTAVE + SEMI on one 7-bit byte
+      l_fc:     {param: vco1_freq, mode: fine12,   label: VCO1 SEMI}
+      l_detune: {param: vco1_detune,    label: DETUNE}
+      l_vol:    {param: prog_vol,       label: PROG VOL}
+      r_a:      {param: vco2_vol,       label: VCO2 VOLUME}
+      r_r:      {param: vco2_pwm_depth, label: VCO2 PWM DEPTH}
+      r_lfo:    {param: vco2_init_pw,   label: VCO2 INIT PW}
+      r_glide:  {param: vco2_freq, mode: coarse12, label: VCO2 OCTAVE}
+      r_fc:     {param: vco2_freq, mode: fine12,   label: VCO2 SEMI}
+      r_detune: {param: glide_time,     label: GLIDE RATE}
+      r_vol:    {param: noise_vol,      label: NOISE VOL}
+
+  - id: P2
+    title: Page 2 - VCF / ADSR / LFO
+    disp: "2"
+    buttons:
+      kb_whole:  {param: vca_vel,        label: VCA VELOCITY}
+      kb_split:  {param: glide_mode, onWhen: 0, label: GLISS}
+      kb_layer:  {param: release_modify, onWhen: 0, label: REL GETS DECAY}
+      uni_l:     {param: lfo2_kbd_trk,   label: LFO2 TRK FULL}
+      uni_r:     {param: lfo2_half_trk,  label: LFO2 TRK HALF}
+      step_load:   {select: {var: lfo, value: 1}, label: LFO1 WAVE}
+      step_enable: {select: {var: lfo, value: 2}, label: LFO2 WAVE}
+      arp_up:     {field: {param: adsr1_mode, bit: 1, onWhen: 0}, label: ADSR1 ADR}
+      arp_down:   {field: {param: adsr1_mode, bit: 0, onWhen: 0}, label: ADSR1 UNCOND RETRIG}
+      arp_random: {param: lfo1_kb_trig, label: LFO1 KEY RETRIG}
+      arp_left:   {field: {param: adsr2_mode, bit: 1, onWhen: 0}, label: ADSR2 ADR}
+      arp_pause:  {field: {param: adsr2_mode, bit: 0, onWhen: 0}, label: ADSR2 UNCOND RETRIG}
+      arp_right:  {param: lfo2_kb_trig, label: LFO2 KEY RETRIG}
+      reldef_l:   {param: reldec_kbd_trk,  label: KBD DEC/REL FULL}
+      reldef_r:   {param: reldec_half_trk, label: KBD DEC/REL HALF}
+      pbdef_l:    {param: vel_attack,      label: VEL ATTACK FULL}
+      pbdef_r:    {param: vel_attack_half, label: VEL ATTACK HALF}
+      hold_l:     {param: vcf_kbd_trk,     label: VCF KBD TRK FULL}
+      hold_r:     {param: vcf_half_trk,    label: VCF KBD TRK HALF}
+    keypad:
+      var: lfo
+      targets: {1: lfo1_wave, 2: lfo2_wave}
+      keys: {0: 0, 1: 1, 2: 2, 3: 3}            # 0 SINE 1 TRI 2 SAW 3 S&H
+      label: LFO WAVE 0 SINE 1 TRI 2 SAW 3 S&H
+    window: {var: lfo, show: both}             # LFO1 wave digit, LFO2 wave digit; DP = selected
+    pots:
+      l_a:      {param: vcf_fc,        label: Fc CUTOFF}
+      l_r:      {param: adsr1_depth,   label: ADSR1 MOD}
+      l_lfo:    {param: vcf_q,         label: Q}
+      l_glide:  {param: adsr1_attack,  label: A1}
+      l_fc:     {param: adsr1_decay,   label: D1}
+      l_detune: {param: adsr1_sustain, label: S1}
+      l_vol:    {param: adsr1_release, label: R1}
+      r_a:      {param: lfo1_rate,     label: LFO1 SPEED}
+      r_r:      {param: lfo2_rate,     label: LFO2 SPEED}
+      r_lfo:    {param: lfo1_delay,    label: LFO1 DELAY}
+      r_glide:  {param: adsr2_attack,  label: A2}
+      r_fc:     {param: adsr2_decay,   label: D2}
+      r_detune: {param: adsr2_sustain, label: S2}
+      r_vol:    {param: adsr2_release, label: R2}
+
+  - id: MOD
+    template: [A, B, C, D]
+    title: "Mod bank {b}"
+    disp: "{b}"
+    buttons:
+      kb_split:  {field: {param: taper_select, bit: 1, onWhen: 0}, label: TAPER FACTORY B}
+      kb_layer:  {field: {param: taper_select, bit: 0, onWhen: 0}, label: TAPER FACTORY A}
+      uni_l:     {param: clip_vca, label: CLIP VCA}
+      uni_r:     {param: clip_mod, label: CLIP MOD BANK}
+      oct_r:     {param: "mod{b}_inv", label: SOURCE INVERT}
+      arp_up:     {param: "mod{b}_c_vel",   label: CTRL VELOCITY}
+      arp_down:   {param: "mod{b}_c_px",    label: CTRL +X}
+      arp_random: {param: mod_kbd_cv, onWhen: 0, label: KBD TRACK (all banks)}
+      arp_left:   {param: "mod{b}_c_nx",    label: CTRL -X}
+      arp_pause:  {param: "mod{b}_c_press", label: CTRL PRESSURE}
+      arp_right:  {param: "mod{b}_replace", label: "REPLACE VEL"}
+      reldef_l:   {param: "mod{b}_d_q",   label: DEST Q}
+      pbdef_l:    {param: "mod{b}_d_vco1",label: DEST VCO1}
+      hold_l:     {param: mod_vel_inv,    label: VEL/KBD INVERT}
+      reldef_r:   {param: "mod{b}_d_fc",  label: DEST Fc}
+      pbdef_r:    {param: "mod{b}_d_vco2",label: DEST VCO2}
+    keypad:
+      targets: {0: "mod{b}_src"}
+      keys: {0: 0, 1: 2, 2: 1, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7}   # keypad legends: 0 DC 1 LFO1 2 LFO2 3 LFO1-sq 4 VCO1 5 VCO2 6 ADSR1 7 ADSR2
+      label: SOURCE 0 DC 1 LFO1 2 LFO2 3 LFO1sq 4 VCO1 5 VCO2 6 ADSR1 7 ADSR2
+    window: {param: "mod{b}_depth"}
+    pots:
+      arp_speed: {param: adsr1_depth,      label: VCF ADSR1 MOD}
+      l_a:      {param: "mod{b}_depth", mode: coarse12, label: DEPTH COARSE}
+      l_r:      {param: "mod{b}_depth", mode: fine12,   label: DEPTH FINE}
+      l_lfo:    {param: vcf_fc,        label: Fc}
+      l_glide:  {param: adsr1_attack,  label: A1}
+      l_fc:     {param: adsr1_decay,   label: D1}
+      l_detune: {param: adsr1_sustain, label: S1}
+      l_vol:    {param: adsr1_release, label: R1}
+      r_a:      {param: lfo1_rate,     label: LFO1 SPEED}
+      r_r:      {param: lfo2_rate,     label: LFO2 SPEED}
+      r_lfo:    {param: lfo1_delay,    label: LFO1 DELAY}
+      r_glide:  {param: adsr2_attack,  label: A2}
+      r_fc:     {param: adsr2_decay,   label: D2}
+      r_detune: {param: adsr2_sustain, label: S2}
+      r_vol:    {param: adsr2_release, label: R2}
