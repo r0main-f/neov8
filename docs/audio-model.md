@@ -48,7 +48,7 @@ convention; S p4 / p34 label the halves the other way round, and the code is aut
 
 | Wave | Path (S p25, L) | Gain into the 47K inverting summer | Peak-to-peak at the card output (I) |
 |---|---|---|---|
-| Saw | pin 8 → 220 Ω → CD4053 → **51K** | 47/51 = 0.92 | ≈ 9.2 V |
+| Saw | pin 8 → 220 Ω → CD4053 → **56K** (layout S p26; schematic label unclear, P) | 47/56 = 0.84 | ≈ 8.4 V |
 | Triangle | pin 10 → 10K/10K divider (÷2) → CD4053 → **22K** | 0.5 · 47/22 = 1.07 | ≈ 5.3 V |
 | Pulse | pin 4 → 4.7K → 2N3906 inverter (10K to +15 V) → **150K**, never switched (off = PW 100 %) | 47/150 = 0.31 | ≈ 4.7 V |
 | Sub-octave | saw → 470 pF differentiator → MC14520 ÷2 (0/15 V square; SUB line holds it in reset) → **220K** | 47/220 = 0.21 | ≈ 3.2 V |
@@ -61,11 +61,17 @@ convention; S p4 / p34 label the halves the other way round, and the code is aut
   (L). The CEM3340 PW input spans 0→5 V for 0→100 % (D). The third element that makes "+6 V = off" possible is U.
   - Model: `duty = clamp(0.5 + (ipw14 + pwm14 − pw50 − pwm0)/PW_SPAN)`, with `pw50` from autotune (vco.ts) and
     `pwm0` = the PWM slot value meaning "no modulation" (`$0404`, C).
-- **Sync.**
-  - The hard-sync pin 6 is marked **NC**. VCO2's pulse edge, through 470 pF + 10K → 2N3906 (47K), drives VCO1's
-    **soft-sync** pin 9, switched by a CD4053 "SYNC ON/OFF" (L).
-  - CEM3340 soft sync acts only near the end of the cycle (phase reversal / partial reset; D, poorly documented).
-  - Model: reset VCO1 when VCO2 has a falling edge and VCO1's phase > `SOFT_SYNC_WINDOW` (F, start 0.5).
+- **Sync: hard sync on VCO2's saw.**
+  - The CD4053 "SYNC ON/OFF" input is wired to VCO2's **saw** (pin 8 → 220 Ω node, the node that also feeds the
+    saw switch and the sub-octave differentiator) (L). The switched edge goes 470 pF + 10K → 2N3906 base, 47K
+    bias from pin 9 (0.1 µF to ground); the transistor works on VCO1's timing node. Pin 6 (hard sync) is NC (L).
+  - This is the CEM3340 datasheet's Figure 5, "Conventional hard sync" (200 pF there, 470 pF here): only the
+    negative edge of the master's saw couples in, and the result is the waveform of conventionally synced saw
+    oscillators (D). Pin 9 is only the bias point, bypassed as the datasheet says when soft sync is unused.
+  - Model: VCO1's ramp restarts at each reset of VCO2's ramp, at its exact sub-sample time; the step of every
+    enabled waveform is band-limited on both sides (the oscillator output is one sample late for that). The
+    sub-octave divider toggles at the reset (it is clocked by the saw edge). Manuals: VCO1 should be above VCO2
+    "for proper effect" (D).
 - **Linear FM.** VCO2's mixed output → CD4053 "LINEAR FM ON/OFF" (`$6300`/`$6301`, one per side) → 0.05 µF →
   CEM3340 pin 13 (L). The depth is U, so it is model constant `LIN_FM_DEPTH` (F).
 
@@ -179,5 +185,4 @@ output current-to-voltage converter. A current divider matches the level (MM §4
 - `BYPASS_GAIN`;
 - `VCA_GAIN`;
 - `LIN_FM_DEPTH`;
-- `SOFT_SYNC_WINDOW`;
 - `D0` and the mod gain `G`.

@@ -30,20 +30,39 @@ pub struct Osc {
     pub phase: f64,
     /// sub-octave flip-flop (MC14520 ÷2, toggled at each ramp reset)
     sub_state: bool,
+    /// the previous sample, output one sample late so a sync reset can correct both sides of its step
+    held: f64,
 }
 
 /// One sample of an oscillator.
 pub struct Tick {
-    /// card output, volts
+    /// card output, volts (one sample late, see `Osc::held`)
     pub out: f64,
-    /// the ramp wrapped during this sample (sync source event), at this fraction of the sample
+    /// the ramp reset during this sample (sync source event): samples elapsed since the reset, 0..1
     pub wrapped: Option<f64>,
 }
 
+/// polyBLEP residual of a unit step, `t` samples after it (0..1) or before it (-1..0)
+#[inline]
+fn step_after(t: f64) -> f64 { -(1.0 - t) * (1.0 - t) * 0.5 }
+#[inline]
+fn step_before(t: f64) -> f64 { (1.0 + t) * (1.0 + t) * 0.5 }
+
 impl Osc {
-    /// Advance by `dt` (cycles per sample). `duty` 0..1 (>= 1: no pulse). `reset_at`: hard phase reset
-    /// requested inside this sample (soft sync from the master), as a fraction of the sample.
-    pub fn tick(&mut self, dt: f64, duty: f64, w: Waves, reset_at: Option<f64>) -> Tick {
+    /// Naive (aliasing) card output at phase `p` with sub-octave state `sub`.
+    fn naive(p: f64, duty: f64, w: Waves, sub: bool) -> f64 {
+        let mut out = 0.0;
+        if w.saw { out += (2.0 * p - 1.0) * 0.5 * SAW_VPP * SAW_GAIN; }
+        if w.tri { out += (if p < 0.5 { 4.0 * p - 1.0 } else { 3.0 - 4.0 * p }) * 0.5 * TRI_VPP * TRI_GAIN; }
+        if duty < 1.0 && duty > 0.0 { out += (if p < duty { 1.0 } else { -1.0 }) * 0.5 * PULSE_VPP * PULSE_GAIN; }
+        if w.sub { out += (if sub { 1.0 } else { -1.0 }) * 0.5 * SUB_VPP * SUB_GAIN; }
+        out
+    }
+
+    /// Advance by `dt` (cycles per sample). `duty` 0..1 (>= 1: no pulse). `sync`: the master's ramp reset during
+    /// this sample, this many samples ago (0..1): hard sync, VCO1's ramp restarts there (S p25: VCO2's saw
+    /// edge, differentiated, pulls VCO1's timing node through a 2N3906, the CEM3340 datasheet's Figure 5).
+    pub fn tick(&mut self, dt: f64, duty: f64, w: Waves, sync: Option<f64>) -> Tick {
         let dt = dt.clamp(1e-9, 0.5);
         let mut p = self.phase + dt;
         let mut wrapped = None;
@@ -52,17 +71,29 @@ impl Osc {
             wrapped = Some(p / dt);
             self.sub_state = !self.sub_state;
         }
-        // soft sync: reset only when the ramp is past the window (CEM3340 pin 9 behaviour, approximated). The
-        // reset is band-limited like a normal wrap (level 1: the BLEP assumes a full-height jump).
-        if reset_at.is_some() && p > SOFT_SYNC_WINDOW && wrapped.is_none() {
-            p = 0.0;
+        // hard sync: the ramp is at `pre` when the master resets, `ago` samples before the end of this sample,
+        // and restarts from 0. Every waveform steps there; each step is band-limited on both sides.
+        let mut sync_step = None;
+        if let Some(ago) = sync {
+            let ago = ago.clamp(0.0, 1.0);
+            let at = self.phase + (1.0 - ago) * dt; // ramp position at the sync point, before any wrap
+            let pre = if at >= 1.0 {
+                at - 1.0 // the natural reset came first (already counted above)
+            } else {
+                if wrapped.is_some() { self.sub_state = !self.sub_state; } // it would have come after: undo it
+                at
+            };
+            let before = Self::naive(pre, duty, w, self.sub_state);
             self.sub_state = !self.sub_state;
-            wrapped = Some(0.0);
+            let after = Self::naive(0.0, duty, w, self.sub_state);
+            p = ago * dt;
+            wrapped = Some(ago);
+            sync_step = Some((after - before, ago));
         }
         self.phase = p;
         let mut out = 0.0;
         if w.saw {
-            let s = 2.0 * p - 1.0 - blep(p, dt);
+            let s = if sync_step.is_some() { 2.0 * p - 1.0 } else { 2.0 * p - 1.0 - blep(p, dt) };
             out += s * 0.5 * SAW_VPP * SAW_GAIN;
         }
         if w.tri {
@@ -70,9 +101,9 @@ impl Osc {
             out += t * 0.5 * TRI_VPP * TRI_GAIN;
         }
         if duty < 1.0 && duty > 0.0 {
-            // pulse high for phase < duty; inverted by the 2N3906 stage, polarity irrelevant for the sound
+            // pulse high for phase < duty; inverted by the 2N3904 stage, polarity irrelevant for the sound
             let mut s = if p < duty { 1.0 } else { -1.0 };
-            s += blep(p, dt);
+            if sync_step.is_none() { s += blep(p, dt); }
             let mut q = p - duty;
             if q < 0.0 { q += 1.0; }
             s -= blep(q, dt);
@@ -80,13 +111,22 @@ impl Osc {
         }
         if w.sub {
             let mut s = if self.sub_state { 1.0 } else { -1.0 };
-            // the toggle happens at the ramp reset; the BLEP's sign is the state after the jump: the current
-            // one just after the wrap (p small), the upcoming one just before it (p near 1)
-            let after = if p < 0.5 { self.sub_state } else { !self.sub_state };
-            s += if after { 1.0 } else { -1.0 } * blep(p, dt);
+            if sync_step.is_none() {
+                // the toggle happens at the ramp reset; the BLEP's sign is the state after the jump: the current
+                // one just after the wrap (p small), the upcoming one just before it (p near 1)
+                let after = if p < 0.5 { self.sub_state } else { !self.sub_state };
+                s += if after { 1.0 } else { -1.0 } * blep(p, dt);
+            }
             out += s * 0.5 * SUB_VPP * SUB_GAIN;
         }
-        Tick { out, wrapped }
+        let mut prev = self.held;
+        if let Some((h, ago)) = sync_step {
+            // the step's own edges (saw/pulse/sub reset) are in `h`; the sample before it gets its share too
+            out += h * step_after(ago);
+            prev += h * step_before(ago - 1.0);
+        }
+        self.held = out;
+        Tick { out: prev, wrapped }
     }
 }
 
@@ -131,5 +171,32 @@ mod tests {
         let fund = bin(5000.0);
         let alias = bin(2000.0).max(bin(3000.0)).max(bin(7000.0)); // 48k-45k=3k, 50k-48k=2k aliases
         assert!(20.0 * (alias / fund).log10() < -30.0, "aliases at {} dB", 20.0 * (alias / fund).log10());
+    }
+
+    #[test]
+    fn hard_sync_locks_vco1_to_vco2_period() {
+        // master at fs/100 (integer period), slave 1.37× higher: the synced output repeats every 100 samples
+        let fs = 48_000.0;
+        let (f2, f1) = (fs / 100.0, 1.37 * fs / 100.0);
+        let (mut m, mut s) = (Osc::default(), Osc::default());
+        let saw = Waves { saw: true, tri: false, sub: false };
+        let mut y = Vec::new();
+        for _ in 0..2000 {
+            let t2 = m.tick(f2 / fs, 1.0, saw, None);
+            y.push(s.tick(f1 / fs, 1.0, saw, t2.wrapped).out);
+        }
+        let err = (500..1900).map(|i| (y[i] - y[i + 100]).abs()).fold(0.0, f64::max);
+        assert!(err < 1e-6, "not periodic at the master period: {err}");
+        // without sync it is not
+        let (mut m, mut s) = (Osc::default(), Osc::default());
+        let mut z = Vec::new();
+        for _ in 0..2000 {
+            let _ = m.tick(f2 / fs, 1.0, saw, None);
+            z.push(s.tick(f1 / fs, 1.0, saw, None).out);
+        }
+        assert!((500..1900).map(|i| (z[i] - z[i + 100]).abs()).fold(0.0, f64::max) > 1.0);
+        // the synced output stays band-limited: no sample-to-sample jump near the full saw step
+        let jump = (1..2000).map(|i| (y[i] - y[i - 1]).abs()).fold(0.0, f64::max);
+        assert!(jump < 0.75 * SAW_VPP * SAW_GAIN, "unsmoothed reset step: {jump}");
     }
 }

@@ -11,15 +11,14 @@ pub const SAW_VPP: f64 = 10.0;
 pub const TRI_VPP: f64 = 5.0;
 pub const PULSE_VPP: f64 = 15.0;
 pub const SUB_VPP: f64 = 15.0;
-/// summer U8 (47K feedback) input weights: saw 51K, triangle 10K/10K then 22K, pulse 150K, sub 220K (L)
-pub const SAW_GAIN: f64 = 47.0 / 51.0;
+/// summer U8 (47K feedback) input weights: saw 56K (component layout S p26; the schematic label is unclear, P),
+/// triangle 10K/10K then 22K, pulse 150K, sub 220K (L)
+pub const SAW_GAIN: f64 = 47.0 / 56.0;
 pub const TRI_GAIN: f64 = 0.5 * 47.0 / 22.0;
 pub const PULSE_GAIN: f64 = 47.0 / 150.0;
 pub const SUB_GAIN: f64 = 47.0 / 220.0;
 /// PWM slot level meaning "no modulation" (`$0404` = 514, C apply.asm); autotune's pw50 includes it
 pub const PWM_REST: f64 = 514.0;
-/// soft sync (CEM3340 pin 9, hard sync pin NC, L): VCO1 resets only past this phase (F)
-pub const SOFT_SYNC_WINDOW: f64 = 0.5;
 /// linear FM VCO2 mix -> VCO1 (0.05 µF into pin 13, series R unknown): relative deviation per volt (F)
 pub const LIN_FM_DEPTH: f64 = 0.05;
 

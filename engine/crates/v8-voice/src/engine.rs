@@ -186,7 +186,7 @@ impl Engine {
                 }
                 let t2 = vo.o2.tick(p.f2 / fs, p.duty2, p.w2, None);
                 let fm = if p.lin_fm { 1.0 + LIN_FM_DEPTH * vo.last_v2 } else { 1.0 };
-                let reset = if p.sync { t2.wrapped } else { None };
+                let reset = if p.sync { t2.wrapped } else { None }; // hard sync on VCO2's saw reset
                 let t1 = vo.o1.tick((p.f1 * fm).max(0.0) / fs, p.duty1, p.w1, reset);
                 vo.last_v2 = t2.out;
                 let into = p.g2 * t2.out + p.gn * noise + if p.bypass { 0.0 } else { p.g1 * t1.out };
