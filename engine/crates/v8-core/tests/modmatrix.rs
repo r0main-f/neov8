@@ -1,6 +1,7 @@
 //! The modulation-bank decode (v8_voice::modmatrix) against both ROMs: programs with random routings are
-//! recalled from the panel in LAYER mode, and the banks read back from the crosspoint / LS670 writes must be the
-//! programs' own settings. Skipped for a ROM that is not built / not present.
+//! recalled from the panel in LAYER mode, and the banks read from the closed crosspoints (`$6405` = DATA, written
+//! while `$6307` = 0) and the LS670 words must be the programs' own settings. This also checks that each ROM
+//! closes the switches at all (NeoV8 before v0.8.4 left `$6405` at 0 and closed none). Skipped for a ROM that is not built / not present.
 
 use v8_core::Instrument;
 use v8_voice::modmatrix::{decode, Bank};
@@ -46,10 +47,13 @@ fn bank_from_program(p: &[u8], b: usize) -> Bank {
         invert: byte & 0x80 == 0,
         dest: !dn & 0x0f,
         vel: ctl & 8 != 0 && !(repl && b < 3),
+        unity: ctl == 0 && !repl,
+        lf_noise: repl && b == 2,
+        adsr1: repl && b < 2,
         plus_x: ctl & 4 != 0,
         minus_x: ctl & 2 != 0,
         pressure: ctl & 1 != 0,
-        repl,
+        pedal: repl && b == 3,
     }
 }
 
@@ -86,7 +90,7 @@ fn decoded_banks_are_the_recalled_programs() {
             i.skip((0.3 * SR) as u64);
             let st = &i.engine.state;
             for (side, n) in [(0usize, r), (1, l)] {
-                let got = decode(&st.xdata, &st.ctl.ls670, side);
+                let got = decode(&st.ctl.xpoint, &st.ctl.ls670, side);
                 for (b, g) in got.iter().enumerate() {
                     assert_eq!(*g, bank_from_program(&progs[n], b), "{name}: side {side} program {n} bank {b}");
                     checked += 1;

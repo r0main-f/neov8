@@ -14,13 +14,10 @@ pub struct AnalogState {
     pub cv: [u16; 136],
     pub mult: [u8; 136],
     pub ctl: Ctl,
-    /// last byte written to each ANA I crosspoint address ($65xx): the routing decode needs the data, not only
-    /// D7 (crate::modmatrix)
-    pub xdata: [u8; 256],
 }
 
 impl Default for AnalogState {
-    fn default() -> Self { AnalogState { cv: [0; 136], mult: [0; 136], ctl: Ctl::default(), xdata: [0; 256] } }
+    fn default() -> Self { AnalogState { cv: [0; 136], mult: [0; 136], ctl: Ctl::default() } }
 }
 
 impl AnalogState {
@@ -30,10 +27,7 @@ impl AnalogState {
                 self.cv[slot as usize] = value;
                 self.mult[slot as usize] = mult;
             }
-            AnalogEvent::Latch { addr, data, slot, .. } => {
-                if addr >> 8 == 0x65 { self.xdata[(addr & 0xff) as usize] = data; }
-                self.ctl.apply(addr, data, slot);
-            }
+            AnalogEvent::Latch { addr, data, slot, .. } => { self.ctl.apply(addr, data, slot); }
         }
     }
     /// S&H level in 14-bit DAC units (DAC word × multiplier / 255), as the VCO model reads it
@@ -209,7 +203,7 @@ impl Engine {
                 volts(st.level(0x7a + o) - LFO2_REF),
                 if sq { LFO1_SQ_V } else { 0.0 },
             ];
-            self.banks[side] = decode(&st.xdata, &c.ls670, side);
+            self.banks[side] = decode(&c.xpoint, &c.ls670, side);
             for b in 0..4 {
                 let vd = st.frac(0x60 + o + b) * VFS;
                 let g = (vd - MOD_TH).max(0.0) / (VFS - MOD_TH) * MOD_GAIN;
@@ -271,27 +265,24 @@ impl Engine {
                     if bank.dest == 0 || g == 0.0 { continue; }
                     let s = match bank.src {
                         0..=3 => self.mono[side][bank.src as usize],
-                        4 => vo.last_v1,
-                        5 => vo.last_v2,
+                        4 => vo.last_v1 * VCO1_SRC_GAIN,
+                        5 => vo.last_v2 * VCO2_SRC_GAIN,
                         6 => p.adsr1_v,
                         _ => p.adsr2_v,
                     };
-                    let ctl = if bank.has_controller() {
-                        let mut c = 0.0;
-                        if bank.vel { c += p.vel; }
-                        if bank.plus_x { c += px; }
-                        if bank.minus_x { c += nx; }
-                        if bank.pressure { c += mono_ctl[0]; }
-                        if bank.repl {
-                            c += match b { 0 | 1 => p.adsr1_v / VFS, 2 => mono_ctl[2], _ => mono_ctl[1] };
-                        }
-                        c.clamp(0.0, 1.0)
-                    } else {
-                        1.0
-                    };
-                    let x = s * ctl * g;
+                    // controller inputs summed into OTA1's bias (the "unity" input = full scale)
+                    let mut ctl = 0.0;
+                    if bank.vel { ctl += p.vel; }
+                    if bank.unity { ctl += 1.0; }
+                    if bank.lf_noise { ctl += mono_ctl[2]; }
+                    if bank.adsr1 { ctl += p.adsr1_v / VFS; }
+                    if bank.plus_x { ctl += px; }
+                    if bank.minus_x { ctl += nx; }
+                    if bank.pressure { ctl += mono_ctl[0]; }
+                    if bank.pedal { ctl += mono_ctl[1]; }
+                    let x = s * ctl.clamp(0.0, 1.0) * g;
                     for (d, md) in m.iter_mut().enumerate() {
-                        if bank.dest & (1 << d) != 0 { *md += x; }
+                        if bank.dest & (1 << d) != 0 { *md += if d < 2 { x * VCO_MOD_K } else { x }; }
                     }
                 }
                 vo.vca += (p.vca_target - vo.vca) * a_vca;
@@ -383,10 +374,12 @@ mod tests {
         st.cv[0x68] = 16383;
         st.cv[0x53] = 16383;
         st.ctl.ic1 = !0x04;
-        // bank A, side 0: source DC (address 0, the default), not inverted; VCO1 (or Q) on, the rest off
+        // bank A, side 0: source DC (X0), unity controller, in phase to VCO1 (or Q), the rest grounded
+        st.ctl.xpoint[0] = 1;
+        st.ctl.xpoint[0x21] = 1;
         for d in 0..4 {
             let on = if dest_q { d == 3 } else { d == 0 };
-            st.xdata[0x30 + d * 4 + 2 + usize::from(!on)] = 0xff;
+            st.ctl.xpoint[0x30 + d * 4 + 2 + usize::from(!on)] = 1;
         }
         st.cv[0x60] = (depth * 16384.0) as u16;
         let mut r = vec![0f32; 48_000];
@@ -403,8 +396,8 @@ mod tests {
     #[test]
     fn mod_bank_dc_to_vco1_follows_the_depth_law() {
         let (f0, _) = vco1_freq_with_dc_mod(0.0, false);
-        // +1 octave: depth CV = threshold + 1/5 of the span (DC = 5 V, 1 V/oct)
-        let d = (MOD_TH + (VFS - MOD_TH) / MOD_DC_V) / VFS;
+        // +1 octave: depth CV = threshold + the span / (DC volts × the VCO bus share), 1 V/oct
+        let d = (MOD_TH + (VFS - MOD_TH) / (MOD_DC_V * VCO_MOD_K)) / VFS;
         let (f1, _) = vco1_freq_with_dc_mod(d, false);
         assert!((f1 / f0 - 2.0).abs() < 0.02, "{f0} -> {f1}");
         // depth $18 is below the OTA threshold: no modulation (user manual p.64)

@@ -32,7 +32,7 @@ export class Machine {
   /**
    * Decoded analog-control state (docs/hardware.md §4), used by the parity harness:
    *  bits.ic1/ic2/ic3 = DAC-card CD4724 Q0-7 ($61xx/$62xx/$63xx), ic22/ic23 = DIGIMOD CD4724 ($64xx after
-   *  STA $307F / other slot), xpoint[a] = ANA I CD22100 crosspoint $65aa closed (D7), ls670[chip*4+word] = D4-7.
+   *  STA $307F / other slot), xpoint[a] = ANA I CD22100 crosspoint $65aa closed (= $6405 at the last write while $6307 = 0), ls670[chip*4+word] = D4-7.
    */
   readonly ctl = { ic1: 0, ic2: 0, ic3: 0, ic22: 0, ic23: 0, xpoint: new Uint8Array(256), ls670: new Uint8Array(8) };
   /** hook for the VCO model (autotune): PIA1 PA7 level; set by sim/src/machine/vco.ts when present */
@@ -125,7 +125,11 @@ export class Machine {
     else if (page === 0x64 && (a & 0xf8) === 0) {
       if (this.slot === 0x7f) { c.ic22 = bit(c.ic22); this.muxLatch = c.ic22; } // pot/tune mux address
       else c.ic23 = bit(c.ic23);
-    } else if (page === 0x65) c.xpoint[a & 0xff] = (v >> 7) & 1;
+    } else if (page === 0x65) {
+      // ANA I: the CD22100s' common DATA line is IC23 Q5 ($6405, "Fc PED on/off"), not D7; the strobe only reaches
+      // the chips while IC3 Q7 ($6307, /ENMAT) is 0 (S p18). The data byte is ignored.
+      if (!(c.ic3 & 0x80)) c.xpoint[a & 0xff] = (c.ic23 >> 5) & 1;
+    }
     else if (page === 0x66 || page === 0x67) c.ls670[(page - 0x66) * 4 + ((a >> 3) & 3)] = (v >> 4) & 0x0f;
   }
 
