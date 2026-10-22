@@ -1,37 +1,80 @@
-//! Front panel in egui: the three 2-digit displays and LEDs mirrored from the 8279 display RAM, the buttons
-//! (A440 latches as the shift key for the next button), the 15 program-parameter trimmers, the analog controls,
-//! and an on-screen keyboard (VPK-5). Battery RAM is written to its file every few seconds in the standalone app.
+//! The front panel, drawn after a real Rev4 Voyetra Eight module (photos of units in use): black panel with rack
+//! ears, outlined sections, cream / red / blue / grey square buttons with their red LEDs, red 7-segment displays,
+//! the arpeggiator speed, MASTER TUNE / VOLUME knobs and POWER rocker, and the light-grey PROGRAM PARAMETER
+//! TRIMMERS section. Below it: bank loading, the analog performance controls, and an on-screen keyboard.
+//!
+//! Everything is laid out in panel units (1560 x 450, rack ears included) and scaled to the window. Knobs turn by
+//! dragging up / down; double-click returns a trimmer to its centre. A440 latches as the shift key for the next
+//! button, as holding it on the panel.
 
-use crate::panel::{self, FIRST_ROW, GROUPS, OCT_L, OCT_R, POTS_L, POTS_R, POT_ARP_SPEED};
-use crate::{Cmd, Shared, V8Params, STANDALONE};
+use crate::panel::{self, OCT_L, OCT_R, POTS_L, POTS_R, POT_ARP_SPEED};
+use crate::{bank, Cmd, Shared, V8Params, STANDALONE};
 use nih_plug::prelude::*;
-use nih_plug_egui::egui::{self, Color32, Pos2, Rect, Sense, Stroke, Vec2};
+use nih_plug_egui::egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 use nih_plug_egui::{create_egui_editor, widgets};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-const RED: Color32 = Color32::from_rgb(255, 40, 40);
-const RED_DIM: Color32 = Color32::from_rgb(60, 12, 12);
-const PANEL: Color32 = Color32::from_rgb(24, 22, 22);
-const LOW: u8 = 36; // on-screen keyboard: C2 .. C6
-const HIGH: u8 = 84;
+// panel geometry
+const PW: f32 = 1560.0;
+const PH: f32 = 450.0;
+const EAR: f32 = 30.0;
+// colours
+const BLACK: Color32 = Color32::from_rgb(20, 20, 20);
+const LINE: Color32 = Color32::from_rgb(185, 185, 185);
+const TEXT: Color32 = Color32::from_rgb(232, 232, 232);
+const CREAM: Color32 = Color32::from_rgb(231, 225, 207);
+const RED: Color32 = Color32::from_rgb(200, 40, 52);
+const BLUE: Color32 = Color32::from_rgb(70, 150, 200);
+const GREY: Color32 = Color32::from_rgb(82, 82, 82);
+const TRIM_BG: Color32 = Color32::from_rgb(206, 206, 198);
+const TRIM_TEXT: Color32 = Color32::from_rgb(34, 34, 34);
+const EAR_COL: Color32 = Color32::from_rgb(186, 186, 180);
+const LED_ON: Color32 = Color32::from_rgb(255, 36, 36);
+const LED_OFF: Color32 = Color32::from_rgb(70, 16, 16);
+const SEG_OFF: Color32 = Color32::from_rgb(52, 10, 10);
+
+const LOW: u8 = 36; // on-screen keyboard (VPK-5 range the ROM scans: 36..96)
+const HIGH: u8 = 96;
+
+#[derive(Clone, Copy)]
+enum Kind { Cream, Red, Blue, Grey }
+
+#[derive(Clone, Copy, PartialEq)]
+enum Scale { None, Bipolar, Ten }
 
 struct UiState {
     a440: bool,
     pots: [f32; 16],
     note: Option<u8>,
     last_save: Instant,
+    status: String,
+}
+
+/// Panel units -> screen.
+struct Pan { o: Pos2, s: f32 }
+impl Pan {
+    fn p(&self, x: f32, y: f32) -> Pos2 { Pos2::new(self.o.x + (EAR + x) * self.s, self.o.y + y * self.s) }
+    fn r(&self, x: f32, y: f32, w: f32, h: f32) -> Rect { Rect::from_min_size(self.p(x, y), Vec2::new(w, h) * self.s) }
+    fn c(&self, x: f32, y: f32, w: f32, h: f32) -> Rect { Rect::from_center_size(self.p(x, y), Vec2::new(w, h) * self.s) }
+    fn f(&self, size: f32) -> FontId { FontId::proportional(size * self.s) }
+    fn text(&self, p: &egui::Painter, x: f32, y: f32, s: &str, size: f32, col: Color32) {
+        p.text(self.p(x, y), Align2::CENTER_CENTER, s, self.f(size), col);
+    }
 }
 
 pub fn create(params: Arc<V8Params>, shared: Arc<Shared>) -> Option<Box<dyn Editor>> {
-    let state = UiState { a440: false, pots: [64.0; 16], note: None, last_save: Instant::now() };
+    let state = UiState { a440: false, pots: [64.0; 16], note: None, last_save: Instant::now(), status: String::new() };
     create_egui_editor(params.editor_state.clone(), state, |_, _| {}, move |ctx, setter, st| {
         ctx.request_repaint_after(Duration::from_millis(30));
         let ram: [u8; 16] = std::array::from_fn(|i| shared.display[i].load(Ordering::Relaxed));
         let send = |c: Cmd| {
             if let Ok(mut tx) = shared.cmd.lock() { let _ = tx.push(c); }
         };
+        if st.status.is_empty() {
+            if let Ok(s) = shared.status.lock() { st.status = s.clone(); }
+        }
         if STANDALONE.load(Ordering::Relaxed)
             && st.last_save.elapsed() > Duration::from_secs(5)
             && shared.bram_dirty.swap(false, Ordering::Relaxed)
@@ -39,172 +82,367 @@ pub fn create(params: Arc<V8Params>, shared: Arc<Shared>) -> Option<Box<dyn Edit
             if let Ok(b) = params.bram.lock() { if b.len() == 0x2000 { crate::save_bram_file(&b); } }
             st.last_save = Instant::now();
         }
-        egui::CentralPanel::default().frame(egui::Frame::default().fill(PANEL).inner_margin(12.0)).show(ctx, |ui| {
-            ui.style_mut().visuals.override_text_color = Some(Color32::from_gray(220));
+        egui::CentralPanel::default().frame(egui::Frame::default().fill(Color32::from_rgb(12, 12, 12)).inner_margin(10.0)).show(ctx, |ui| {
             if !shared.ready.load(Ordering::Relaxed) {
-                ui.label("Starting (first start: tuning the oscillators)…");
+                ui.colored_label(TEXT, "Starting (first start: loading the bank and tuning the oscillators)…");
                 return;
             }
-            // displays
-            ui.horizontal(|ui| {
-                for (k, name) in ["LEFT", "RIGHT", "STEP"].iter().enumerate() {
-                    ui.vertical(|ui| {
-                        ui.label(*name);
-                        ui.horizontal(|ui| {
-                            digit(ui, panel::segments(&ram, 2 * k));
-                            digit(ui, panel::segments(&ram, 2 * k + 1));
-                        });
-                    });
-                    if k < 2 {
-                        let oct = if k == 0 { OCT_L } else { OCT_R };
-                        ui.vertical(|ui| {
-                            ui.label("oct");
-                            for (lbl, (i, b)) in ["up", "norm", "down"].iter().zip(oct) {
-                                ui.horizontal(|ui| { led(ui, ram[i] & (1 << b) != 0); ui.small(*lbl); });
-                            }
-                        });
-                    }
-                    ui.add_space(18.0);
-                }
-                ui.add_space(24.0);
-                ui.vertical(|ui| {
-                    let a = egui::Button::new("A440 (shift)").fill(if st.a440 { RED } else { Color32::from_gray(60) });
-                    if ui.add(a).clicked() { st.a440 = !st.a440; }
-                    ui.small("latches for the next button");
-                });
-            });
+            let w = ui.available_width();
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(w, w * PH / PW), Sense::hover());
+            let pan = Pan { o: rect.min, s: w / PW };
+            draw_panel(ui, &pan, &ram, st, &send, &params, setter);
             ui.add_space(8.0);
-            // buttons, in two rows
-            for row in [&GROUPS[..FIRST_ROW], &GROUPS[FIRST_ROW..]] {
-                ui.horizontal(|ui| {
-                    for (title, buttons) in row.iter() {
-                        ui.group(|ui| {
-                            ui.vertical(|ui| {
-                                if !title.is_empty() { ui.small(*title); }
-                                let cols = if *title == "PROGRAMMER" || buttons.len() > 4 { 3 } else { buttons.len() };
-                                egui::Grid::new(title.to_string() + buttons[0].id).spacing([4.0, 4.0]).show(ui, |ui| {
-                                    for (i, bt) in buttons.iter().enumerate() {
-                                        let on = panel::led(&ram, bt.id);
-                                        let w = egui::Button::new(bt.label)
-                                            .min_size(Vec2::new(44.0, 22.0))
-                                            .fill(if on { Color32::from_rgb(150, 30, 30) } else { Color32::from_gray(70) });
-                                        if ui.add(w).clicked() {
-                                            let code = if st.a440 { bt.code & !0x40 } else { bt.code };
-                                            send(Cmd::Key(code));
-                                            st.a440 = false;
-                                        }
-                                        if (i + 1) % cols == 0 { ui.end_row(); }
-                                    }
-                                });
-                            });
-                        });
-                    }
-                });
-            }
-            ui.add_space(8.0);
-            // program parameter trimmers
-            ui.group(|ui| {
-                ui.small("PROGRAM PARAMETER TRIMMERS");
-                for (row, pots) in [("LEFT", &POTS_L), ("RIGHT", &POTS_R)] {
-                    ui.horizontal(|ui| {
-                        ui.label(format!("{row:5}"));
-                        for &(_, label, ch) in pots.iter() {
-                            ui.vertical(|ui| {
-                                ui.small(label);
-                                let s = egui::Slider::new(&mut st.pots[ch], 0.0..=127.0).show_value(false);
-                                if ui.add_sized([90.0, 18.0], s).changed() {
-                                    send(Cmd::Pot(ch, st.pots[ch] as f64 * 1023.0 / 127.0));
-                                }
-                            });
-                        }
-                    });
-                }
-                ui.horizontal(|ui| {
-                    ui.label("arpeggiator speed");
-                    let s = egui::Slider::new(&mut st.pots[POT_ARP_SPEED], 0.0..=127.0).show_value(false);
-                    if ui.add_sized([140.0, 18.0], s).changed() {
-                        send(Cmd::Pot(POT_ARP_SPEED, st.pots[POT_ARP_SPEED] as f64 * 1023.0 / 127.0));
-                    }
-                });
-            });
-            ui.add_space(8.0);
-            // analog controls (automatable parameters)
-            ui.horizontal(|ui| {
-                for (label, p) in [
-                    ("master volume", &params.master),
-                    ("joystick X", &params.joystick_x),
-                    ("pressure", &params.pressure),
-                    ("Fc pedal", &params.fc_pedal),
-                ] {
-                    ui.vertical(|ui| {
-                        ui.small(label);
-                        ui.add(widgets::ParamSlider::for_param(p, setter).with_width(120.0));
-                    });
-                }
-            });
-            ui.add_space(8.0);
+            strip(ui, st, &send, &params, setter);
+            ui.add_space(6.0);
             keyboard(ui, st, &send);
         });
     })
 }
 
-fn led(ui: &mut egui::Ui, on: bool) {
-    let (r, _) = ui.allocate_exact_size(Vec2::splat(9.0), Sense::hover());
-    ui.painter().circle_filled(r.center(), 4.0, if on { RED } else { RED_DIM });
+fn draw_panel(ui: &mut egui::Ui, pan: &Pan, ram: &[u8; 16], st: &mut UiState, send: &dyn Fn(Cmd), params: &V8Params, setter: &ParamSetter) {
+    let p = ui.painter().clone();
+    // rack ears and panel
+    for x0 in [-EAR, 1500.0] {
+        p.rect_filled(pan.r(x0, 0.0, EAR, PH), 3.0 * pan.s, EAR_COL);
+        for y in [45.0, PH - 45.0] {
+            p.circle_filled(pan.p(x0 + EAR / 2.0, y), 7.0 * pan.s, Color32::from_rgb(40, 40, 40));
+            p.circle_filled(pan.p(x0 + EAR / 2.0, y), 4.0 * pan.s, Color32::from_rgb(110, 110, 105));
+        }
+    }
+    p.rect_filled(pan.r(0.0, 0.0, 1500.0, PH), 2.0 * pan.s, BLACK);
+    let outline = |x: f32, y: f32, w: f32, h: f32| {
+        p.rect_stroke(pan.r(x, y, w, h), 6.0 * pan.s, Stroke::new(1.3 * pan.s, LINE), StrokeKind::Inside);
+    };
+    let led = |x: f32, y: f32, on: bool| { p.circle_filled(pan.p(x, y), 3.6 * pan.s, if on { LED_ON } else { LED_OFF }); };
+    let lit = |id: &str| panel::led(ram, id);
+    let code = |id: &str| panel::GROUPS.iter().flat_map(|g| g.1.iter()).find(|b| b.id == id).map(|b| b.code);
+
+    // a panel button: sends its key when clicked (shifted when A440 is latched)
+    let press = |ui: &mut egui::Ui, st: &mut UiState, id: &str, x: f32, y: f32, kind: Kind| {
+        let r = pan.c(x, y, 34.0, 30.0);
+        let resp = ui.interact(r, ui.id().with(id), Sense::click());
+        let col = match kind { Kind::Cream => CREAM, Kind::Red => RED, Kind::Blue => BLUE, Kind::Grey => GREY };
+        let col = if resp.is_pointer_button_down_on() { col.gamma_multiply(0.75) } else { col };
+        p.rect_filled(r.translate(Vec2::splat(1.5 * pan.s)), 3.0 * pan.s, Color32::from_black_alpha(160));
+        p.rect_filled(r, 3.0 * pan.s, col);
+        p.rect_stroke(r, 3.0 * pan.s, Stroke::new(1.0 * pan.s, col.gamma_multiply(0.6)), StrokeKind::Inside);
+        let hl = Rect::from_min_max(r.min + Vec2::splat(2.0 * pan.s), Pos2::new(r.max.x - 2.0 * pan.s, r.min.y + 6.0 * pan.s));
+        p.rect_filled(hl, 2.0 * pan.s, Color32::from_white_alpha(28));
+        if resp.clicked() {
+            if let Some(c) = code(id) {
+                send(Cmd::Key(if st.a440 { c & !0x40 } else { c }));
+                st.a440 = false;
+            }
+        }
+    };
+
+    // ---- left column
+    press(ui, st, "mute", 45.0, 55.0, Kind::Blue);
+    led(68.0, 42.0, lit("mute"));
+    pan.text(&p, 45.0, 85.0, "audio", 9.0, TEXT);
+    pan.text(&p, 45.0, 96.0, "mute", 9.0, TEXT);
+    knob(ui, pan, "phones", 52.0, 160.0, 17.0, &mut st.pots[15], Scale::Ten, false);
+    pan.text(&p, 52.0, 200.0, "headphone", 8.5, TEXT);
+    pan.text(&p, 52.0, 210.0, "monitor", 8.5, TEXT);
+    p.circle_filled(pan.p(52.0, 250.0), 13.0 * pan.s, Color32::from_rgb(150, 150, 145));
+    p.circle_filled(pan.p(52.0, 250.0), 6.0 * pan.s, Color32::from_rgb(10, 10, 10));
+    p.rect_filled(pan.c(50.0, 355.0, 54.0, 62.0), 4.0 * pan.s, Color32::from_rgb(70, 70, 68));
+    p.circle_filled(pan.p(50.0, 352.0), 17.0 * pan.s, Color32::from_rgb(25, 25, 25));
+    for k in 0..5 {
+        let a = std::f32::consts::PI * (0.15 + 0.175 * k as f32);
+        p.circle_filled(pan.p(50.0 + 9.0 * a.cos(), 352.0 + 9.0 * a.sin()), 2.0 * pan.s, Color32::from_gray(150));
+    }
+    pan.text(&p, 50.0, 400.0, "keyboard input", 8.5, TEXT);
+
+    // ---- keyboard mode, unison
+    outline(98.0, 10.0, 78.0, 262.0);
+    pan.text(&p, 137.0, 26.0, "KEYBOARD", 10.0, TEXT);
+    pan.text(&p, 137.0, 38.0, "MODE", 10.0, TEXT);
+    for (id, y, l1, l2) in [("kb_whole", 75.0, "whole", "8 voice"), ("kb_split", 150.0, "split", ""), ("kb_layer", 222.0, "layer", "")] {
+        press(ui, st, id, 128.0, y, Kind::Cream);
+        led(160.0, y, lit(id));
+        pan.text(&p, 132.0, y + 24.0, l1, 10.5, TEXT);
+        if !l2.is_empty() { pan.text(&p, 132.0, y + 35.0, l2, 10.5, TEXT); }
+    }
+    outline(98.0, 282.0, 78.0, 152.0);
+    for (id, y, l) in [("uni_l", 315.0, "L"), ("uni_r", 395.0, "R")] {
+        press(ui, st, id, 128.0, y, Kind::Cream);
+        led(160.0, y - 14.0, lit(id));
+        pan.text(&p, 160.0, y + 2.0, l, 10.0, TEXT);
+    }
+    pan.text(&p, 137.0, 355.0, "UNISON", 11.0, TEXT);
+
+    // ---- displays
+    outline(188.0, 10.0, 370.0, 182.0);
+    for (k, x0, title) in [(0usize, 194.0, "LEFT"), (1, 344.0, "RIGHT")] {
+        outline(x0, 16.0, 98.0, 170.0);
+        pan.text(&p, x0 + 49.0, 26.0, title, 11.0, TEXT);
+        let (call, oct, xc, xo) = if k == 0 { ("call_l", "oct_l", x0 + 25.0, x0 + 73.0) } else { ("call_r", "oct_r", x0 + 73.0, x0 + 25.0) };
+        press(ui, st, call, xc, 54.0, Kind::Red);
+        press(ui, st, oct, xo, 54.0, Kind::Cream);
+        pan.text(&p, xc, 78.0, "call", 10.0, TEXT);
+        pan.text(&p, xo, 78.0, "octave", 10.0, TEXT);
+        digit(&p, pan.r(x0 + 11.0, 92.0, 36.0, 58.0), panel::segments(ram, 2 * k), pan.s);
+        digit(&p, pan.r(x0 + 51.0, 92.0, 36.0, 58.0), panel::segments(ram, 2 * k + 1), pan.s);
+        pan.text(&p, x0 + 49.0, 170.0, "PROGRAM NUMBER", 7.0, TEXT);
+    }
+    // octave LEDs: LEFT's on the left of the labels, RIGHT's on the right (between the two display boxes)
+    for (i, ((ol, or), l)) in OCT_L.iter().zip(OCT_R.iter()).zip(["up", "normal", "down"]).enumerate() {
+        let y = 102.0 + 20.0 * i as f32;
+        led(299.0, y, ram[ol.0] & (1 << ol.1) != 0);
+        led(337.0, y, ram[or.0] & (1 << or.1) != 0);
+        pan.text(&p, 318.0, y, l, 6.5, TEXT);
+    }
+    outline(450.0, 16.0, 102.0, 170.0);
+    pan.text(&p, 501.0, 26.0, "STEP", 11.0, TEXT);
+    press(ui, st, "step_load", 475.0, 54.0, Kind::Red);
+    press(ui, st, "step_enable", 527.0, 54.0, Kind::Cream);
+    pan.text(&p, 475.0, 78.0, "load", 10.0, TEXT);
+    pan.text(&p, 527.0, 78.0, "enable", 10.0, TEXT);
+    digit(&p, pan.r(463.0, 92.0, 36.0, 58.0), panel::segments(ram, 4), pan.s);
+    digit(&p, pan.r(503.0, 92.0, 36.0, 58.0), panel::segments(ram, 5), pan.s);
+    pan.text(&p, 501.0, 170.0, "STEP NUMBER", 7.5, TEXT);
+
+    // ---- programmer: remote / tape column and keypad
+    outline(188.0, 200.0, 225.0, 234.0);
+    press(ui, st, "edit", 218.0, 228.0, Kind::Grey);
+    pan.text(&p, 248.0, 220.0, "edit", 8.0, TEXT);
+    pan.text(&p, 222.0, 258.0, "REMOTE", 10.5, TEXT);
+    press(ui, st, "store", 218.0, 290.0, Kind::Grey);
+    pan.text(&p, 248.0, 282.0, "store", 8.0, TEXT);
+    press(ui, st, "tape_load", 218.0, 335.0, Kind::Blue);
+    pan.text(&p, 248.0, 327.0, "load", 8.0, TEXT);
+    pan.text(&p, 222.0, 360.0, "TAPE", 10.5, TEXT);
+    press(ui, st, "tape_dump", 218.0, 392.0, Kind::Blue);
+    pan.text(&p, 248.0, 384.0, "dump", 8.0, TEXT);
+    let keys = [["k1", "k2", "k3"], ["k4", "k5", "k6"], ["k7", "k8", "k9"], ["fwd", "k0", "rev"]];
+    for (r, row) in keys.iter().enumerate() {
+        for (c, id) in row.iter().enumerate() {
+            let (x, y) = (300.0 + 45.0 * c as f32, 228.0 + 50.0 * r as f32);
+            press(ui, st, id, x, y, Kind::Cream);
+            match *id {
+                "fwd" => pan.text(&p, x, y - 21.0, "FWD", 8.0, TEXT),
+                "rev" => pan.text(&p, x, y - 21.0, "REV", 8.0, TEXT),
+                k => pan.text(&p, x, y, &k[1..], 12.0, Color32::from_rgb(40, 40, 40)),
+            }
+        }
+    }
+    pan.text(&p, 330.0, 423.0, "PROGRAMMER", 12.0, TEXT);
+
+    // ---- arpeggiator
+    outline(566.0, 10.0, 366.0, 222.0);
+    pan.text(&p, 682.0, 24.0, "mode", 11.0, TEXT);
+    for (id, x, l) in [("arp_up", 600.0, "UP"), ("arp_down", 682.0, "DOWN"), ("arp_random", 764.0, "RANDOM")] {
+        press(ui, st, id, x, 60.0, Kind::Cream);
+        led(x + 24.0, 48.0, lit(id));
+        pan.text(&p, x + 32.0, 64.0, l, 7.0, TEXT);
+    }
+    pan.text(&p, 682.0, 112.0, "ARPEGGIATOR", 13.0, TEXT);
+    for (id, x, l, kind) in [("arp_left", 600.0, "LEFT", Kind::Blue), ("arp_pause", 682.0, "PAUSE", Kind::Cream), ("arp_right", 764.0, "RIGHT", Kind::Blue)] {
+        press(ui, st, id, x, 152.0, kind);
+        led(x + 24.0, 140.0, lit(id));
+        pan.text(&p, x + 32.0, 172.0, l, 7.0, TEXT);
+    }
+    pan.text(&p, 682.0, 205.0, "assignment", 11.0, TEXT);
+    pan.text(&p, 870.0, 50.0, "speed", 11.0, TEXT);
+    if knob(ui, pan, "arp_speed", 870.0, 110.0, 22.0, &mut st.pots[POT_ARP_SPEED], Scale::None, true) {
+        send(Cmd::Pot(POT_ARP_SPEED, st.pots[POT_ARP_SPEED] as f64 * 1023.0 / 127.0));
+    }
+    pan.text(&p, 848.0, 158.0, "SLOW", 7.0, TEXT);
+    pan.text(&p, 894.0, 158.0, "FAST", 7.0, TEXT);
+
+    // ---- logo, tune, volume, power
+    outline(940.0, 10.0, 552.0, 222.0);
+    pan.text(&p, 1135.0, 44.0, "VOYETRA EIGHT", 34.0, TEXT);
+    pan.text(&p, 1135.0, 78.0, "polyphonic synthesizer module", 15.0, TEXT);
+    p.rect_stroke(pan.r(1350.0, 22.0, 80.0, 60.0), 4.0 * pan.s, Stroke::new(2.0 * pan.s, TEXT), StrokeKind::Inside);
+    pan.text(&p, 1390.0, 52.0, "OB", 30.0, TEXT);
+    press(ui, st, "autotune", 985.0, 140.0, Kind::Cream);
+    led(985.0, 117.0, lit("autotune"));
+    pan.text(&p, 985.0, 170.0, "AUTO TUNE", 7.5, TEXT);
+    // A440: the shift key, latched for the next button
+    let ar = pan.c(1055.0, 140.0, 34.0, 30.0);
+    let aresp = ui.interact(ar, ui.id().with("a440"), Sense::click());
+    p.rect_filled(ar.translate(Vec2::splat(1.5 * pan.s)), 3.0 * pan.s, Color32::from_black_alpha(160));
+    p.rect_filled(ar, 3.0 * pan.s, if st.a440 { BLUE.gamma_multiply(0.7) } else { BLUE });
+    if st.a440 { p.rect_stroke(ar.expand(3.0 * pan.s), 4.0 * pan.s, Stroke::new(2.0 * pan.s, LED_ON), StrokeKind::Outside); }
+    if aresp.clicked() { st.a440 = !st.a440; }
+    led(1055.0, 117.0, lit("a440"));
+    pan.text(&p, 1055.0, 170.0, "A 440", 7.5, TEXT);
+    let mut tune = (params.master_tune.value() + 1.0) / 2.0 * 127.0;
+    if knob(ui, pan, "master_tune", 1150.0, 140.0, 24.0, &mut tune, Scale::Bipolar, true) {
+        setter.begin_set_parameter(&params.master_tune);
+        setter.set_parameter(&params.master_tune, tune / 127.0 * 2.0 - 1.0);
+        setter.end_set_parameter(&params.master_tune);
+    }
+    pan.text(&p, 1150.0, 192.0, "MASTER", 7.5, TEXT);
+    pan.text(&p, 1150.0, 202.0, "TUNE", 7.5, TEXT);
+    let mut vol = params.master.value() * 127.0;
+    if knob(ui, pan, "master_volume", 1270.0, 140.0, 24.0, &mut vol, Scale::Ten, false) {
+        setter.begin_set_parameter(&params.master);
+        setter.set_parameter(&params.master, vol / 127.0);
+        setter.end_set_parameter(&params.master);
+    }
+    pan.text(&p, 1270.0, 192.0, "MASTER", 7.5, TEXT);
+    pan.text(&p, 1270.0, 202.0, "VOLUME", 7.5, TEXT);
+    let pr = pan.c(1420.0, 140.0, 46.0, 58.0);
+    let presp = ui.interact(pr, ui.id().with("power"), Sense::click());
+    p.rect_filled(pr, 3.0 * pan.s, Color32::from_rgb(235, 235, 230));
+    let rocker = pr.shrink(5.0 * pan.s);
+    p.rect_filled(rocker, 2.0 * pan.s, if presp.is_pointer_button_down_on() { RED.gamma_multiply(0.6) } else { RED });
+    p.rect_filled(Rect::from_min_max(rocker.min, Pos2::new(rocker.max.x, rocker.center().y)), 2.0 * pan.s, Color32::from_white_alpha(40));
+    if presp.clicked() { send(Cmd::Power); }
+    pan.text(&p, 1420.0, 192.0, "POWER", 7.5, TEXT);
+
+    // ---- program parameter trimmers
+    p.rect_filled(pan.r(422.0, 240.0, 1070.0, 196.0), 6.0 * pan.s, TRIM_BG);
+    for (id, x, l1, l2) in [("reldef", 458.0, "RELEASE", "DEFEAT"), ("pbdef", 538.0, "PITCH BEND", "DEFEAT"), ("hold", 618.0, "HOLD", "")] {
+        let (il, ir) = (format!("{id}_l"), format!("{id}_r"));
+        press(ui, st, &il, x, 282.0, Kind::Grey);
+        press(ui, st, &ir, x, 382.0, Kind::Grey);
+        led(x, 257.0, lit(&il));
+        led(x, 407.0, lit(&ir));
+        pan.text(&p, x, 326.0, l1, 7.5, TRIM_TEXT);
+        if !l2.is_empty() { pan.text(&p, x, 336.0, l2, 7.5, TRIM_TEXT); }
+    }
+    pan.text(&p, 675.0, 282.0, "LEFT", 11.0, TRIM_TEXT);
+    pan.text(&p, 675.0, 382.0, "RIGHT", 11.0, TRIM_TEXT);
+    const TRIM_LABELS: [&str; 7] = ["A", "R", "LFO RATE", "GLIDE", "Fc", "DETUNE", "VOLUME"];
+    for (row, pots, y) in [(0, &POTS_L, 282.0), (1, &POTS_R, 382.0)] {
+        for (i, &(_, label, ch)) in pots.iter().enumerate() {
+            let x = 735.0 + 115.0 * i as f32;
+            let scale = if label == "volume" { Scale::Ten } else { Scale::Bipolar };
+            if knob(ui, pan, &format!("pot{ch}"), x, y, 20.0, &mut st.pots[ch], scale, true) {
+                send(Cmd::Pot(ch, st.pots[ch] as f64 * 1023.0 / 127.0));
+            }
+            if row == 0 { pan.text(&p, x, 326.0, TRIM_LABELS[i], 9.0, TRIM_TEXT); }
+        }
+    }
+    pan.text(&p, 1010.0, 428.0, "PROGRAM  PARAMETER  TRIMMERS", 12.5, TRIM_TEXT);
 }
 
-/// One 7-segment digit; `seg` bit 0..6 = a..g, bit 7 = decimal point.
-fn digit(ui: &mut egui::Ui, seg: u8) {
-    let (r, _) = ui.allocate_exact_size(Vec2::new(26.0, 42.0), Sense::hover());
-    let p = ui.painter();
-    p.rect_filled(r, 2.0, Color32::from_rgb(20, 4, 4));
-    let (x0, y0, w, h, t) = (r.left() + 4.0, r.top() + 3.0, 16.0, 34.0, 3.0);
+/// A black knob with a pointer and a dot scale (−135..+135 degrees for 0..127). Returns true when changed.
+#[allow(clippy::too_many_arguments)]
+fn knob(ui: &mut egui::Ui, pan: &Pan, id: &str, x: f32, y: f32, r: f32, v: &mut f32, scale: Scale, center_reset: bool) -> bool {
+    let p = ui.painter().clone();
+    let c = pan.p(x, y);
+    let on_trim = y > 240.0 && x > 422.0;
+    let mark = if on_trim { TRIM_TEXT } else { TEXT };
+    for k in 0..=10 {
+        let a = (-225.0f32 + 27.0 * k as f32).to_radians();
+        let rr = (r + 7.0) * pan.s;
+        p.circle_filled(c + Vec2::new(a.cos(), a.sin()) * rr, 1.3 * pan.s, mark);
+        if scale == Scale::Ten && k % 2 == 0 {
+            let rt = (r + 15.0) * pan.s;
+            p.text(c + Vec2::new(a.cos(), a.sin()) * rt, Align2::CENTER_CENTER, format!("{k}"), pan.f(6.5), mark);
+        }
+    }
+    if scale == Scale::Bipolar {
+        p.text(c + Vec2::new(0.0, -(r + 15.0) * pan.s), Align2::CENTER_CENTER, "0", pan.f(7.0), mark);
+        p.text(c + Vec2::new(-(r + 12.0) * pan.s, (r + 8.0) * pan.s), Align2::CENTER_CENTER, "−", pan.f(8.0), mark);
+        p.text(c + Vec2::new((r + 12.0) * pan.s, (r + 8.0) * pan.s), Align2::CENTER_CENTER, "+", pan.f(8.0), mark);
+    }
+    let rect = Rect::from_center_size(c, Vec2::splat(2.0 * r * pan.s));
+    let resp = ui.interact(rect, ui.id().with(id), Sense::click_and_drag());
+    let old = *v;
+    if resp.dragged() {
+        *v = (*v - resp.drag_delta().y * 0.6 / pan.s.max(0.3)).clamp(0.0, 127.0);
+    }
+    if center_reset && resp.double_clicked() { *v = 64.0; }
+    p.circle_filled(c + Vec2::splat(1.5 * pan.s), r * pan.s, Color32::from_black_alpha(120));
+    p.circle_filled(c, r * pan.s, Color32::from_rgb(18, 18, 18));
+    p.circle_stroke(c, r * pan.s, Stroke::new(1.5 * pan.s, Color32::from_rgb(70, 70, 70)));
+    p.circle_filled(c, r * 0.72 * pan.s, Color32::from_rgb(34, 34, 34));
+    let a = (-225.0 + 270.0 * *v / 127.0).to_radians();
+    let dir = Vec2::new(a.cos(), a.sin());
+    p.line_segment([c + dir * r * 0.25 * pan.s, c + dir * r * 0.95 * pan.s], Stroke::new(2.4 * pan.s, Color32::WHITE));
+    *v != old
+}
+
+/// One red 7-segment digit; `seg` bit 0..6 = a..g, bit 7 = decimal point.
+fn digit(p: &egui::Painter, r: Rect, seg: u8, s: f32) {
+    p.rect_filled(r, 2.0 * s, Color32::from_rgb(28, 4, 4));
+    let (x0, y0) = (r.left() + 6.0 * s, r.top() + 5.0 * s);
+    let (w, h, t) = (r.width() - 14.0 * s, r.height() - 10.0 * s, 4.0 * s);
     let hseg = |y: f32| Rect::from_min_size(Pos2::new(x0 + t, y), Vec2::new(w - 2.0 * t, t));
     let vseg = |x: f32, y: f32| Rect::from_min_size(Pos2::new(x, y), Vec2::new(t, h / 2.0 - t));
     let segs = [
-        hseg(y0),                              // a
-        vseg(x0 + w - t, y0 + t),              // b
-        vseg(x0 + w - t, y0 + h / 2.0 + t / 2.0), // c
-        hseg(y0 + h - t),                      // d
-        vseg(x0, y0 + h / 2.0 + t / 2.0),      // e
-        vseg(x0, y0 + t),                      // f
-        hseg(y0 + h / 2.0 - t / 2.0),          // g
+        hseg(y0),
+        vseg(x0 + w - t, y0 + t),
+        vseg(x0 + w - t, y0 + h / 2.0 + t / 2.0),
+        hseg(y0 + h - t),
+        vseg(x0, y0 + h / 2.0 + t / 2.0),
+        vseg(x0, y0 + t),
+        hseg(y0 + h / 2.0 - t / 2.0),
     ];
-    for (i, s) in segs.iter().enumerate() {
-        p.rect_filled(*s, 1.0, if seg & (1 << i) != 0 { RED } else { RED_DIM });
+    for (i, sg) in segs.iter().enumerate() {
+        p.rect_filled(*sg, 1.0 * s, if seg & (1 << i) != 0 { LED_ON } else { SEG_OFF });
     }
-    p.circle_filled(Pos2::new(x0 + w + 3.0, y0 + h), 1.8, if seg & 0x80 != 0 { RED } else { RED_DIM });
+    p.circle_filled(Pos2::new(x0 + w + 4.0 * s, y0 + h), 2.2 * s, if seg & 0x80 != 0 { LED_ON } else { SEG_OFF });
 }
 
-/// On-screen keyboard C2..C6: press and drag to play (velocity 100).
+/// Bank loading and the analog performance controls.
+fn strip(ui: &mut egui::Ui, st: &mut UiState, send: &dyn Fn(Cmd), params: &V8Params, setter: &ParamSetter) {
+    ui.horizontal(|ui| {
+        ui.style_mut().visuals.override_text_color = Some(TEXT);
+        if ui.button("LOAD BANK…").on_hover_text("SysEx dump (.syx), cassette recording (.wav) or battery image (.bin)").clicked() {
+            if let Some(path) = rfd::FileDialog::new().add_filter("Voyetra banks", &["syx", "wav", "bin"]).pick_file() {
+                st.status = match bank::load(&path) {
+                    Ok(b) => {
+                        let mut img = params.bram.lock().map(|b| b.clone()).unwrap_or_default();
+                        if img.len() != 0x2000 { img = crate::default_bram(); }
+                        b.apply(&mut img);
+                        if let Ok(mut pb) = params.bram.lock() { *pb = img.clone(); }
+                        let boxed: Box<[u8; 0x2000]> = img.into_boxed_slice().try_into().unwrap();
+                        send(Cmd::LoadBram(boxed));
+                        format!("{}: {} loaded", path.file_name().map(|f| f.to_string_lossy()).unwrap_or_default(), b.summary())
+                    }
+                    Err(e) => e,
+                };
+            }
+        }
+        ui.label(&st.status);
+    });
+    ui.horizontal(|ui| {
+        ui.style_mut().visuals.override_text_color = Some(TEXT);
+        for (label, p) in [("joystick X", &params.joystick_x), ("key pressure", &params.pressure), ("Fc pedal", &params.fc_pedal)] {
+            ui.label(label);
+            ui.add(widgets::ParamSlider::for_param(p, setter).with_width(150.0));
+            ui.add_space(12.0);
+        }
+    });
+}
+
+/// On-screen keyboard C2..C7 (the VPK-5 range the ROM scans): press and drag to play (velocity 100).
 fn keyboard(ui: &mut egui::Ui, st: &mut UiState, send: &dyn Fn(Cmd)) {
     let whites: Vec<u8> = (LOW..=HIGH).filter(|n| !is_black(*n)).collect();
-    let ww = 22.0;
-    let (r, resp) = ui.allocate_exact_size(Vec2::new(ww * whites.len() as f32, 90.0), Sense::click_and_drag());
+    let w = ui.available_width();
+    let ww = w / whites.len() as f32;
+    let hgt = (ww * 5.2).min(130.0);
+    let (r, resp) = ui.allocate_exact_size(Vec2::new(w, hgt), Sense::click_and_drag());
     let p = ui.painter();
     let key_rect = |n: u8| -> Rect {
-        let wi = whites.iter().position(|&w| w >= n).unwrap_or(0) as f32;
+        let wi = whites.iter().position(|&x| x >= n).unwrap_or(0) as f32;
         if is_black(n) {
-            Rect::from_min_size(Pos2::new(r.left() + wi * ww - 7.0, r.top()), Vec2::new(14.0, 55.0))
+            Rect::from_min_size(Pos2::new(r.left() + wi * ww - ww * 0.3, r.top()), Vec2::new(ww * 0.6, hgt * 0.62))
         } else {
-            Rect::from_min_size(Pos2::new(r.left() + wi * ww, r.top()), Vec2::new(ww - 1.0, 90.0))
+            Rect::from_min_size(Pos2::new(r.left() + wi * ww, r.top()), Vec2::new(ww - 1.0, hgt))
         }
     };
+    p.rect_filled(r.expand(3.0), 3.0, Color32::from_rgb(30, 30, 30));
     for &n in &whites {
-        let c = if st.note == Some(n) { Color32::from_rgb(220, 170, 170) } else { Color32::from_gray(235) };
+        let c = if st.note == Some(n) { Color32::from_rgb(220, 180, 180) } else { Color32::from_rgb(238, 236, 228) };
         p.rect_filled(key_rect(n), 2.0, c);
     }
     for n in (LOW..=HIGH).filter(|n| is_black(*n)) {
-        let c = if st.note == Some(n) { Color32::from_rgb(140, 40, 40) } else { Color32::from_gray(20) };
+        let c = if st.note == Some(n) { Color32::from_rgb(140, 40, 40) } else { Color32::from_rgb(16, 16, 16) };
         p.rect_filled(key_rect(n), 2.0, c);
-        p.rect_stroke(key_rect(n), 2.0, Stroke::new(1.0_f32, Color32::BLACK), egui::StrokeKind::Inside);
     }
     let hit = resp.interact_pointer_pos().and_then(|pos| {
         (LOW..=HIGH).filter(|n| is_black(*n)).find(|&n| key_rect(n).contains(pos))
             .or_else(|| whites.iter().copied().find(|&n| key_rect(n).contains(pos)))
     });
-    let down = resp.is_pointer_button_down_on();
-    let want = if down { hit } else { None };
+    let want = if resp.is_pointer_button_down_on() { hit } else { None };
     if want != st.note {
         if let Some(n) = st.note { send(Cmd::Note(n, false, 0)); }
         if let Some(n) = want { send(Cmd::Note(n, true, 100)); }

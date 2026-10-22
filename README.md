@@ -57,12 +57,18 @@ what still needs a real unit: `docs/audio-validation.md`).
 Needs Rust (`brew install rustup && rustup default stable`, with `$(brew --prefix rustup)/bin` on the PATH):
 `npm run engine:build`, `npm run engine:test`.
 
-* **Standalone app:** `npm run app` builds the NeoV8 ROM and starts NeoV8 with a front panel (displays, LEDs,
-  buttons, trimmers, joystick/pressure/pedal, on-screen keyboard). It uses the first MIDI input it finds (a USB
-  keyboard or interface); `npm run app -- --midi-input ""` lists the ports, `--midi-output <name>` sends the
-  instrument's MIDI out, `--help` shows the audio options. The first start tunes the oscillators (AUTO TUNE) on a
-  fresh battery RAM; programs, steps and tuning are kept in `~/Library/Application Support/NeoV8/battery.bin`.
-  A440 is a latch in the window: click it, then the button to combine it with.
+* **Standalone app:** `npm run app` builds the NeoV8 ROM and starts NeoV8 with a front panel drawn after a real
+  Rev4 module (displays, LEDs, every button, the trimmers, arpeggiator speed, MASTER TUNE / VOLUME, POWER), the
+  joystick / pressure / Fc-pedal controls and an on-screen keyboard. Knobs turn by dragging up or down
+  (double-click centres a trimmer); A440 latches as the shift key for the next button. It uses the first MIDI
+  input it finds (a USB keyboard or interface); `npm run app -- --midi-input ""` lists the ports,
+  `--midi-output <name>` sends the instrument's MIDI out, `--help` shows the audio options.
+* **Sound banks:** LOAD BANK (below the panel) or `npm run app -- --bank <file>` loads a SysEx dump (`.syx`,
+  Rev4 / NeoV8 program and step dumps), a cassette recording (`.wav`, decoded like the ROM's tape reader) or an
+  8 KB battery image (`.bin`), then power-cycles the instrument; the tuning is kept. On a first start (fresh
+  battery RAM) the app loads the factory cassette recording from `Voyetra 8 synths/` when it is there (not
+  distributed), otherwise an init bank, and runs AUTO TUNE. Programs, steps and tuning are kept in
+  `~/Library/Application Support/NeoV8/battery.bin` (delete it to start fresh).
 * **Plugin:** the same crate (`engine/crates/v8-plugin`) exports CLAP and VST3; bundling for DAWs is the next step.
 * `engine/target/release/v8-cli render <script.json> <out.wav>` plays a scripted session (boot, AUTO TUNE, panel,
   notes, MIDI) on either ROM and writes the audio.

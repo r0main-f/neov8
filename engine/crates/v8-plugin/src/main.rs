@@ -2,6 +2,7 @@
 //!
 //! Defaults: CoreAudio on macOS, 256-sample periods, and the first MIDI input port (e.g. a USB keyboard) when no
 //! `--midi-input` is given. `neov8 --midi-input ""` lists the ports; `neov8 --help` shows every option.
+//! `--bank <file>` loads a bank at start (.syx dump, .wav cassette recording, 8 KB battery image).
 //! Battery RAM (programs, steps, tuning) is kept in ~/Library/Application Support/NeoV8/battery.bin.
 
 use nih_plug::prelude::*;
@@ -11,6 +12,14 @@ use v8_plugin::{NeoV8, STANDALONE};
 fn main() {
     STANDALONE.store(true, Ordering::Relaxed);
     let mut args: Vec<String> = std::env::args().collect();
+    // --bank <file>: load a bank at start (.syx dump, .wav cassette recording, 8 KB battery image)
+    if let Some(i) = args.iter().position(|a| a == "--bank") {
+        if i + 1 < args.len() {
+            let p = args.remove(i + 1);
+            args.remove(i);
+            if let Ok(mut b) = v8_plugin::START_BANK.lock() { *b = Some(p.into()); }
+        }
+    }
     let has = |a: &[String], f: &str| a.iter().any(|x| x == f || x.starts_with(&format!("{f}=")));
     if cfg!(target_os = "macos") && !has(&args, "--backend") && !has(&args, "-b") {
         args.extend(["--backend".into(), "core-audio".into()]);
