@@ -42,8 +42,9 @@ impl AnalogState {
 struct Params {
     f1: f64,
     f2: f64,
-    duty1: f64,
-    duty2: f64,
+    /// summed pulse-width CV (IPW + PWM − rest), slot units
+    pw1: f64,
+    pw2: f64,
     w1: Waves,
     w2: Waves,
     sync: bool,
@@ -65,6 +66,10 @@ struct Voice {
     vcf: Ladder,
     env1: f64,
     vca: f64,
+    /// smoothed pulse-width CVs (pin 5 RC) and cutoff (octaves re FC_REF, summer pole)
+    pw1: f64,
+    pw2: f64,
+    fco: f64,
     last_v2: f64,
     dc: f64,
     p: Params,
@@ -77,13 +82,22 @@ pub struct Engine {
     voices: Vec<Voice>,
     noise: u32,
     vol: [f64; 2],
+    vol_t: [f64; 2],
     dirty: bool,
     a_env1: f64,
     a_vca: f64,
     a_dc: f64,
+    a_pw: f64,
+    a_fc: f64,
+    a_vol_up: f64,
+    a_vol_dn: f64,
     /// master volume (panel MASTER VOLUME pot), 0..1
     pub master: f64,
 }
+
+/// SSM2024 gain for a control voltage `v`: off below the threshold, 1 at `full` volts
+#[inline]
+fn vca_gain(v: f64, full: f64) -> f64 { (v - VCA_TH).max(0.0) / (full - VCA_TH) }
 
 /// control-rate block (samples)
 pub const BLOCK: usize = 16;
@@ -99,10 +113,15 @@ impl Engine {
             voices: vec![Voice::default(); 8],
             noise: 0x1234_5678,
             vol: [0.0; 2],
+            vol_t: [0.0; 2],
             dirty: true,
             a_env1: a(ADSR1_TAU),
             a_vca: a(VCA_TAU),
             a_dc: a(1.0 / (2.0 * std::f64::consts::PI * 8.0)),
+            a_pw: a(PW_TAU),
+            a_fc: a(FC_TAU),
+            a_vol_up: a(VOL_RISE_TAU),
+            a_vol_dn: a(VOL_FALL_TAU),
             master: 1.0,
         }
     }
@@ -125,25 +144,25 @@ impl Engine {
             let p = &mut self.voices[v].p;
             p.f1 = CPU_HZ as f64 / period_at(&self.osc[i1], st.level(b1 + 3), st.level(b1));
             p.f2 = CPU_HZ as f64 / period_at(&self.osc[i2], st.level(b2 + 3), st.level(b2));
-            p.duty1 = duty_at(&self.osc[i1], st.level(b1 + 2) + st.level(b1 + 1) - PWM_REST);
-            p.duty2 = duty_at(&self.osc[i2], st.level(b2 + 2) + st.level(b2 + 1) - PWM_REST);
+            p.pw1 = st.level(b1 + 2) + st.level(b1 + 1) - PWM_REST;
+            p.pw2 = st.level(b2 + 2) + st.level(b2 + 1) - PWM_REST;
             p.w1 = Waves { sub: on(0), tri: on(1), saw: on(2) };
             p.w2 = Waves { sub: on(4), tri: on(5), saw: on(6) };
             p.sync = on(3);
             p.bypass = on(7);
             p.lin_fm = c.ic3 & (1 << side) == 0;
             let sb = 8 * side;
-            p.g1 = st.frac(0x44 + sb) * VFS / VCO_LEVEL_FULL;
-            p.g2 = st.frac(0x45 + sb) * VFS / VCO_LEVEL_FULL;
-            p.gn = st.frac(0x52 + 4 * side) * VFS / VCO_LEVEL_FULL;
+            p.g1 = vca_gain(st.frac(0x44 + sb) * VFS, VCO_LEVEL_FULL);
+            p.g2 = vca_gain(st.frac(0x45 + sb) * VFS, VCO_LEVEL_FULL);
+            p.gn = vca_gain(st.frac(0x52 + 4 * side) * VFS, VCO_LEVEL_FULL);
             p.k = K_MAX * st.frac(0x46 + sb).powf(Q_CURVE);
             let fc7 = st.level(0x40 + sb + lv) / 128.0;
             p.fc_oct = (fc7 - FC_REF_STEP) / 12.0;
             p.env1_target = st.frac(0x70 + v) * VFS; // volts = octaves
-            p.vca_target = st.frac(0x68 + v);
+            p.vca_target = vca_gain(st.frac(0x68 + v) * VFS, VFS);
         }
         for side in 0..2 {
-            self.vol[side] = st.frac(0x53 + 4 * side) * 1.5;
+            self.vol_t[side] = vca_gain(st.frac(0x53 + 4 * side) * VFS, VFS) * 1.5;
         }
     }
 
@@ -168,6 +187,7 @@ impl Engine {
             } else if v < 4 { [1.0, 0.0] } else { [0.0, 1.0] };
         }
         let fs = self.sr;
+        let fc_max = FC_MAX.min(0.45 * fs);
         for i in 0..n {
             if i % BLOCK == 0 && self.dirty {
                 self.update_params();
@@ -175,22 +195,31 @@ impl Engine {
             }
             let noise = self.white() * 0.5 * NOISE_VPP;
             let (mut out_l, mut out_r) = (0.0, 0.0);
-            let (a_env1, a_vca, a_dc) = (self.a_env1, self.a_vca, self.a_dc);
+            for side in 0..2 {
+                let a = if self.vol_t[side] > self.vol[side] { self.a_vol_up } else { self.a_vol_dn };
+                self.vol[side] += (self.vol_t[side] - self.vol[side]) * a;
+            }
+            let (a_env1, a_vca, a_dc, a_pw, a_fc) = (self.a_env1, self.a_vca, self.a_dc, self.a_pw, self.a_fc);
+            let osc = &self.osc;
             for (v, vo) in self.voices.iter_mut().enumerate() {
                 let p = vo.p;
                 vo.vca += (p.vca_target - vo.vca) * a_vca;
                 vo.env1 += (p.env1_target - vo.env1) * a_env1;
+                vo.pw1 += (p.pw1 - vo.pw1) * a_pw;
+                vo.pw2 += (p.pw2 - vo.pw2) * a_pw;
+                vo.fco += (p.fc_oct + vo.env1 - vo.fco) * a_fc;
                 if vo.vca < 1e-6 && p.vca_target < 1e-6 {
                     vo.vca = 0.0;
                     continue; // silent voice: skip the audio work (oscillators keep no phase while silent)
                 }
-                let t2 = vo.o2.tick(p.f2 / fs, p.duty2, p.w2, None);
+                let (duty1, duty2) = (duty_at(&osc[2 * v + 1], vo.pw1), duty_at(&osc[2 * v], vo.pw2));
+                let t2 = vo.o2.tick(p.f2 / fs, duty2, p.w2, None);
                 let fm = if p.lin_fm { 1.0 + LIN_FM_DEPTH * vo.last_v2 } else { 1.0 };
                 let reset = if p.sync { t2.wrapped } else { None }; // hard sync on VCO2's saw reset
-                let t1 = vo.o1.tick((p.f1 * fm).max(0.0) / fs, p.duty1, p.w1, reset);
+                let t1 = vo.o1.tick((p.f1 * fm).max(0.0) / fs, duty1, p.w1, reset);
                 vo.last_v2 = t2.out;
                 let into = p.g2 * t2.out + p.gn * noise + if p.bypass { 0.0 } else { p.g1 * t1.out };
-                let fc = (FC_REF * (p.fc_oct + vo.env1).exp2()).clamp(10.0, 0.45 * fs);
+                let fc = (FC_REF * vo.fco.exp2()).clamp(FC_MIN, fc_max);
                 let g = (std::f64::consts::PI * fc / fs).tan();
                 let mut y = vo.vcf.tick(into / DRIVE_V, g, p.k) * DRIVE_V;
                 if p.bypass {
@@ -206,5 +235,19 @@ impl Engine {
             l[i] = (out_l * self.vol[0] * g) as f32;
             r[i] = (out_r * self.vol[1] * g) as f32;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ssm2024_is_off_below_its_threshold_and_linear_above() {
+        assert_eq!(vca_gain(0.0, 10.0), 0.0);
+        assert_eq!(vca_gain(VCA_TH * 0.9, 10.0), 0.0);
+        assert!((vca_gain(10.0, 10.0) - 1.0).abs() < 1e-12);
+        let (a, b) = (vca_gain(4.0, 10.0), vca_gain(6.0, 10.0));
+        assert!((b - a - 2.0 / (10.0 - VCA_TH)).abs() < 1e-12);
     }
 }

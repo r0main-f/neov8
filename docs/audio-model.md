@@ -50,8 +50,8 @@ convention; S p4 / p34 label the halves the other way round, and the code is aut
 | Wave | Path (S p25, L) | Gain into the 47K inverting summer | Peak-to-peak at the card output (I) |
 |---|---|---|---|
 | Saw | pin 8 → 220 Ω → CD4053 → **56K** (layout S p26; schematic label unclear, P) | 47/56 = 0.84 | ≈ 8.4 V |
-| Triangle | pin 10 → 10K/10K divider (÷2) → CD4053 → **22K** | 0.5 · 47/22 = 1.07 | ≈ 5.3 V |
-| Pulse | pin 4 → 4.7K → 2N3906 inverter (10K to +15 V) → **150K**, never switched (off = PW 100 %) | 47/150 = 0.31 | ≈ 4.7 V |
+| Triangle | pin 10 → 10K/10K divider (÷2) → CD4053 → **22.1K 1 %** (layout, P) | 0.5 · 47/22.1 = 1.06 | ≈ 5.3 V |
+| Pulse | pin 4 → 10K (VCO1: 4.75K, hand-modified) → 2N3904 inverter (10K to +15 V) → **150K**, never switched (off = PW 100 %) | 47/150 = 0.31 of 15 V × 150/160 | ≈ 4.4 V (P) |
 | Sub-octave | saw → 470 pF differentiator → MC14520 ÷2 (0/15 V square; SUB line holds it in reset) → **220K** | 47/220 = 0.21 | ≈ 3.2 V |
 
 - The summer U8 (TL064, 47K feedback) is followed by a unity inverter (100K/100K) and 220 Ω, giving "VCO1 VOICE n"
@@ -59,9 +59,13 @@ convention; S p4 / p34 label the halves the other way round, and the code is aut
 - Enables: latch `$61xx`/`$62xx`, active low. Q0 VCO1 sub, Q1 tri, Q2 saw, Q3 sync, Q4 VCO2 sub, Q5 tri, Q6 saw
   (C; the order of the tri/saw glyphs on the schematic is ambiguous).
 - **Pulse width.** The IPW slot and the PWM slot each reach pin 5 through **71.5K 1%**, with 0.1 µF at the pin
-  (L). The CEM3340 PW input spans 0→5 V for 0→100 % (D). The third element that makes "+6 V = off" possible is U.
-  - Model: `duty = clamp(0.5 + (ipw14 + pwm14 − pw50 − pwm0)/PW_SPAN)`, with `pw50` from autotune (vco.ts) and
-    `pwm0` = the PWM slot value meaning "no modulation" (`$0404`, C).
+  and nothing else (L): pin 5 = their **average**, smoothed with τ = 35.75K × 0.1 µF ≈ **3.6 ms**. The CEM3340 PW
+  input spans 0→5 V for 0→100 % (D), so 10 V of summed CV covers the whole range and "+6 V = off" (MM §3.7.3)
+  needs no extra part.
+  - Model: `duty = clamp(0.5 + (ipw14 + pwm14 − pw50 − pwm0)/PW_SPAN)` on the smoothed CV sum, with `pw50` from
+    autotune, `pwm0` = the PWM slot value meaning "no modulation" (`$0404`, C) and `PW_SPAN` = 120 PA steps
+    (10 V at 10.67 V full scale; shared with the autotune model in both emulators). The program's pulse width
+    byte 0..127 then sweeps about 2..98 %, matching the manual's "5 to approximately 95".
 - **Sync: hard sync on VCO2's saw.**
   - The CD4053 "SYNC ON/OFF" input is wired to VCO2's **saw** (pin 8 → 220 Ω node, the node that also feeds the
     saw switch and the sub-octave differentiator) (L). The switched edge goes 470 pF + 10K → 2N3906 base, 47K
@@ -74,7 +78,10 @@ convention; S p4 / p34 label the halves the other way round, and the code is aut
     sub-octave divider toggles at the reset (it is clocked by the saw edge). Manuals: VCO1 should be above VCO2
     "for proper effect" (D).
 - **Linear FM.** VCO2's mixed output → CD4053 "LINEAR FM ON/OFF" (`$6300`/`$6301`, one per side) → 0.05 µF →
-  CEM3340 pin 13 (L). The depth is U, so it is model constant `LIN_FM_DEPTH` (F).
+  **2M2** → CEM3340 pin 13 (L/P). Pin 13 is the reference-current input, fed by 1M 1 % from +15 V (≈ 15 µA) with
+  470 Ω + 0.01 µF to ground (L). Frequency is proportional to that current (D), so `Δf/f = v / (2.2M · 15 µA)
+  = v / 33 V`: `LIN_FM_DEPTH` = 1/33 per volt, about ±14 % for a full VCO2 saw. MM §3.4 mentions the +10 V
+  reference for the CEM3340 currents; if the 1M goes there, the depth is 1.5× (to verify).
 
 ## 3. VCF card (S p23/24/39; MM §4) — one per side, SSM2044 per voice
 
@@ -85,8 +92,12 @@ convention; S p4 / p34 label the halves the other way round, and the code is aut
 - Levels: VCO1 `$44`/`$4C`, VCO2 `$45`/`$4D`, **one CV per side** shared by its 4 voices; 7–10 V = on (MM §4.7.4).
 - Noise: the mixer card's per-side noise VCA output → 100K into the same current node (L).
 - The VCAs' output currents sum into the SSM2044 input.
-- Model: `in = g1·VCO1 + g2·VCO2 + gn·noise`, with `gk = level_k / VFS · DRIVE_k` (F) and a soft clip at the
-  SSM2044 input (OTA, tanh).
+- Model: `in = g1·VCO1 + g2·VCO2 + gn·noise`, with `gk = max(0, V_level − 0.2 V) / (10 V − 0.2 V)` (SSM2024:
+  linear, fully off below ≈ 0.2 V of control, D) and a soft clip at the SSM2044 input (OTA, tanh, `DRIVE_V`).
+  The SSM2044 input clips around ±50 mV; a full-level saw gives ≈ 18 mV there, so the clip sits ≈ 2.7× above one
+  VCO at full level (I), which `DRIVE_V` = 8 V reproduces.
+- The VCO2 level VCA's control resistor reads 47K against 22K for VCO1 (P). If right, VCO2 is about half as
+  loud as VCO1 at the same level; not applied until confirmed.
 
 **Cutoff.**
 - The summer U6 (LM324) adds through a **100K 1% S.I.L. network**: Fc CV, ADSR1, Fc MOD, Fc PED, Fc INIT (L).
@@ -99,7 +110,10 @@ convention; S p4 / p34 label the halves the other way round, and the code is aut
   - from the Fc CV: `Fc7/12`;
   - from ADSR1: `v_env/1 V`;
   - from mod and pedal: `v/1 V`.
-- Model: `fc = FC_REF · 2^((Fc7 − FC_REF_STEP)/12 + vADSR1 + vMOD + vPED)`.
+- 0.01 µF across U6 adds a ≈ **1 ms** pole on the whole cutoff CV (P).
+- Model: `fc = FC_REF · 2^((Fc7 − FC_REF_STEP)/12 + vADSR1 + vMOD + vPED)`, the exponent smoothed with τ 1 ms,
+  clamped to 16 Hz–24 kHz (the summers' ±8/−7 V rails bound it well outside the 20 Hz–20 kHz sweep; SSM2044 pin 13
+  is ≈ 18–19 mV/oct and collapses above ≈ +175 mV, D).
   - `FC_REF` = 440 Hz (L, MM).
   - `FC_REF_STEP` = the Fc value of the calibration program at middle A: U, so F; start 64.
 - The firmware writes `Fc7 = clamp(Fc byte + (note − 42))` at full keyboard tracking, which makes 1 step = 1
@@ -109,6 +123,11 @@ convention; S p4 / p34 label the halves the other way round, and the code is aut
 - `$46`/`$4E` per side (byte `$12`) → U7 difference amplifier → **Q CAL** trimmer 20K per voice → SSM2044 pin 2
   (L/P). Q modulation is **subtracted** (MM §4.2).
 - Calibration: every voice starts self-oscillating at the same Q setting (MM §4.3).
+- SSM2044: oscillation at ≈ 425 µA into pin 2; resonance changes slowly at the low end and fast near oscillation;
+  gain below cutoff drops as Q rises (D). A ladder with linear feedback `k` does all three (its DC gain is
+  `1/(1+k)`), so the model keeps `Q_CURVE` = 1.
+- U7: Q mod enters through 100K, feedback ≈ 150K, initial Q to the + input: Q mod gain ≈ −1.5, initial Q ≈ +2.5
+  (P; for the modulation matrix).
 - Model: `k = K_MAX · clamp(q7 − qmod, 0, 1)^Q_CURVE`, self-oscillation at `k ≥ 4` (4-pole). `K_MAX`, `Q_CURVE`: F.
 
 **Filter.** 4 poles, pole capacitors 3 × 0.01 µF + 1000 pF (P), current output → 390 Ω / 680 Ω → TL082 U12 with
@@ -126,14 +145,21 @@ output current-to-voltage converter. A current divider matches the level (MM §4
 - **Voice VCA** (SSM2024, one per voice), **linear**:
   - audio from the VCF out via 1 µF → 100K into the current input with 220 Ω to ground;
   - control: ADSR2 × velocity (`$68–$6F`, mDAC) → hold → TL064 → 1K + **1 µF** + 10K gain trimmer → 22K, i.e.
-    **≈ 1 ms** smoothing (L). Model: `gain = VCA_GAIN · v_ctl`, with a one-pole on `v_ctl` (τ 1 ms).
+    **≈ 1 ms** smoothing (L). Model: `gain = max(0, v_ctl − 0.2 V)/(VFS − 0.2 V)` (SSM2024 threshold, D), with a
+    one-pole on the control (τ 1 ms).
 - **Pair summers.** LF347, 100K ‖ 33 pF, voices (0,1), (2,3), (4,5), (6,7).
 - **Panning** (DG308 switched by `$6304` SPLIT, L/I):
   - SPLIT/LAYER: voices 0–3 → one output, 4–7 → the other.
   - WHOLE 8: pair (0,1) hard to one side, (6,7) to the other, (2,3) and (4,5) slightly off-centre through 150K/220K
     weights (≈ 3.3 dB).
 - **Output VCAs.** SSM2024 L/R controlled by program volume `$53`/`$57` × MASTER VOL (a panel pot; a plugin
-  parameter here). The CPU divides the volume by 4 when no voice sounds (C).
+  parameter here). Two stages: a control SSM2024 passes the MASTER VOL CV with VOL as its control, and drives the
+  main VCA's control (L). The VOL CV goes through a diode + 470 Ω into 2.2 µF and 10K to the control pin: it rises
+  in ≈ 1 ms and falls in ≈ 22 ms (L + I). The CPU divides the volume by 4 when no voice sounds (C). Model: the
+  SSM2024 threshold on VOL, asymmetric smoothing 1 ms up / 22 ms down.
+- Main VCA inputs: pair (0,1) through 100K, (2,3) 150K, (4,5)/(6,7) 220K via the DG308; 33K ‖ 33 pF current-to-
+  voltage; 100 Ω + 22 µF to the jack (L). The panning model below uses 150K/220K only; the full weight topology is
+  still to be checked.
 - **Noise.** MM5837 PRBS. Audio: per-side SSM2024 controlled by `$52`/`$56` → VCF cards (L → voices 0–3).
   Modulation: LM358 low-pass ≈ 130 Hz → "LF NOISE" (I).
 - **A440 tone.** PTM T3 O3 (439.95 Hz square, `$F1B2`) → 2N3904 → mix (MM §2.2).
