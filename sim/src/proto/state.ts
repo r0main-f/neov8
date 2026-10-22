@@ -2,7 +2,8 @@
 
 export type Side = 'L' | 'R';
 export type KbMode = 'whole' | 'split' | 'layer';
-export type ArpMode = 'up' | 'down' | 'updown' | 'random';
+/** 'played': the keys in the order they went down (A440+ARP UP; ROM mode 6) */
+export type ArpMode = 'up' | 'down' | 'updown' | 'random' | 'played';
 
 export interface Trims { a: number; r: number; lfo: number; glide: number; fc: number; detune: number; vol: number }
 export const ZERO_TRIMS: Trims = { a: 0, r: 0, lfo: 0, glide: 0, fc: 0, detune: 0, vol: 0 };

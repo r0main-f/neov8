@@ -16,10 +16,18 @@ tickBusy:   .res 1          ; tick work running (IRQ re-entry guard)
 dacLock:    .res 1          ; >0: main loop owns the DAC, ticks only counted
 potIdx:     .res 1          ; pot scan position (stock pot index 0-14)
 potTick:    .res 1
+potCnt:     .res 1          ; extra pot reads left for this pass (pot_more)
+potBoost:   .res 1          ; 1 while a SysEx dump runs (midi.asm): 3 extra pots per long pass
 fsw_last:   .res 1          ; footswitches: last raw read, stable state, change work
 fsw_stable: .res 1
 fsw_state:  .res 1
 fsw_changed: .res 1
+vpk_hbtn:   .res 1          ; VPK-5 front buttons, sampled by the tick: bit 7 REV, bit 6 FWD pressed
+vb_last:    .res 1          ; tick (voice.asm vk_btn): last sample, stable state (1 = not armed), repeat countdown
+vb_stable:  .res 1
+vb_rep:     .res 1
+vb_pend:    .res 1          ; presses to send (bit 7 REV, bit 6 FWD): set by the tick, taken by vpk_btn_poll
+vb_f:       .res 1
 
 panel_dirty: .res 1         ; display image changed since the last flush
 cv_refIdx:  .res 1          ; next S&H slot to refresh
@@ -84,7 +92,13 @@ cv_mul:     .res 128        ; DAC1022 multiplier ($FF = full scale)
 .else
         .include "ui/ui.asm"
 .endif
+; Response curves: NeoV8's own (eng/curves.inc, tools/gen-curves.mjs) - or, for the parity tests against the
+; stock ROM, the original tables extracted from your own ROM dump (DEFS="-D STOCK_TABLES", never committed).
+.ifdef STOCK_TABLES
         .include "../gen/rev4-tables.inc"
+.else
+        .include "eng/curves.inc"
+.endif
 
 ; ------------------------------------------------------------------ reset
 reset:
@@ -122,17 +136,33 @@ main:
 @nokey: jsr midi_poll
         jsr pot_scan
         jsr fsw_poll
+        jsr vpk_btn_poll
         jsr eng_service
         jsr ui_service
+        jsr pot_more
         jsr testport
         jmp main
 
 ; One pot conversion per control tick; report moves of 2+ steps (7-bit) to the UI.
+; One pot per control tick (as before: the first read of a pass keeps its place in the main loop). A pass that
+; spans several ticks (arpeggiator, program apply, SysEx dump) reads 1 more at its end (pot_more), 3 more while
+; a dump runs (potBoost, midi.asm), so all 15 are read within ~0.1 s. Each read borrows the DAC ~0.25 ms and
+; delays the control tick: more would upset its timing (sequencer metronome).
 pot_scan:
         lda ticks
-        cmp potTick
-        beq @done
-        sta potTick
+        tax
+        sec
+        sbc potTick
+        beq pot_rts
+        stx potTick
+        sec
+        sbc #1                      ; ticks beyond the first
+        ldx potBoost
+        cmp potMax,x
+        bcc @n
+        lda potMax,x
+@n:     sta potCnt                  ; extra reads for pot_more
+pot_one:
         ldx potIdx
         lda potMux,x
         jsr adc_read               ; 8-bit
@@ -152,10 +182,19 @@ pot_scan:
 @next:  inc potIdx
         lda potIdx
         cmp #15
-        bcc @done
+        bcc pot_rts
         lda #0
         sta potIdx
-@done:  rts
+pot_rts:
+        rts
+
+; end of the main-loop pass: the extra reads pot_scan granted
+pot_more:
+        lda potCnt
+        beq pot_rts
+        dec potCnt
+        jsr pot_one
+        jmp pot_more
 
 pots_init:
         ldx #0
@@ -173,6 +212,7 @@ pots_init:
         rts
 
 ; stock pot index -> pot-mux channel: Fc R/L, GLIDE R/L, LFO R/L, A R/L, R R/L, DETUNE R/L, VOL R/L, ARP SPEED
+potMax:     .byte 1, 3          ; extra pots per long pass: normal, during a SysEx dump
 potMux:     .byte 1, 9, 5, 10, 7, 13, 4, 12, 6, 15, 3, 8, 0, 11, 14
 
 ; ------------------------------------------------------------------ test port (see api.inc)

@@ -45,7 +45,7 @@ eng_init:
         jmp seq_init
 
 ; Control tick (IRQ context, interrupts enabled, never re-entered). The stock 3-phase plan ($8127):
-;   every tick: MIDI-controller CV (1 of 8), VPK-5 key scan
+;   every tick: MIDI-controller CV (1 of 8), VPK-5 key scan (+ front buttons, debounced in phase 1)
 ;   phase 0: 16 envelopes + ADSR->PWM + volume gate
 ;   phase 1: glide voices 4-7, LFO2 both sides, LFO->PWM step, S&H refresh slice
 ;   phase 2: LFO1 both sides, glide voices 0-3 (RIGHT glide off: an LFO->PWM step instead), refresh slice
@@ -74,7 +74,13 @@ eng_tick:
         lda #0
         sta en_phase
         rts
-@p1:    ldx #1                      ; phase 1
+@p1:    lda vpk_hbtn                ; phase 1: VPK-5 REV / FWD debounce and repeat (every 3rd tick);
+        ora vb_last                 ; nothing pressed and nothing pending: armed, so nothing to do
+        ora vb_stable
+        beq @nb
+        lda vpk_hbtn
+        jsr vk_btn
+@nb:    ldx #1
         jsr vx_glide
         jsr lfo_tick2
         jsr lfo_pwmstep             ; (the original does this step at the end of phase 0)

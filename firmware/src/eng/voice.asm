@@ -174,14 +174,72 @@ vx_isdis:
 vx_bit:     .byte $01, $02, $04, $08, $10, $20, $40, $80
 
 ; ------------------------------------------------------------------ VPK-5 keyboard, control tick
+; Front buttons (stock $FC4F, sampled every 5th tick there): A = sample (bit 7 REV, bit 6 FWD pressed), one per
+; 3 ticks (6.1 ms). Two equal samples = stable; a press is queued in vb_pend (sent by fsw.asm vpk_btn_poll), held
+; it repeats after 106 samples (0.65 s), then every 25 (0.15 s), like the stock. Ignored until both have been
+; seen released (no keyboard: the lines may read "pressed").
+vk_btn:
+        cmp vb_last
+        sta vb_last
+        bne @r                      ; changed: wait for a second equal sample
+        ldx vb_stable
+        cpx #1                      ; 1 = not armed yet (fsw_init)
+        bne @on
+        tax
+        bne @r
+        stx vb_stable               ; both released: armed
+@r:     rts
+@on:    cmp vb_stable
+        beq @held
+        ldx vb_stable
+        sta vb_stable
+        txa
+        eor #$ff
+        and vb_stable               ; the buttons that went down
+        ldx #106
+        stx vb_rep
+        bne @fire                   ; always (X)
+@held:  tax
+        beq @r
+        dec vb_rep
+        bne @r
+        ldx #25
+        stx vb_rep
+@fire:  ora vb_pend
+        sta vb_pend
+        rts
+
 vx_tick:
         lda VPK_ACKOFF
         lda VPK_DSTR                ; frame start
-        ldx #7                      ; header: 7 clocks (VPK-5 front buttons not read)
-@h:     sta VPK_CLK
+        sta VPK_CLK                 ; header: 7 clocks, at least 7 cycles apart (as the old loop); the REV / FWD
+        nop                         ; buttons are read after clocks 2 and 3 (stock $FC4F), in the gaps:
+        nop                         ; no extra cycles. vk_btn runs in phase 1 (eng_tick).
+        bit tmp
+        sta VPK_CLK
+        nop                         ; data settles (the key scan reads 7 cycles after a clock)
         nop
-        dex
-        bne @h
+        lda VPK_A                   ; D7 = 0: REV pressed
+        asl                         ; C = REV up
+        sta VPK_CLK
+        nop
+        nop
+        lda VPK_B                   ; D7 = 0: FWD pressed
+        ror                         ; bit 7 REV up, bit 6 FWD up
+        eor #$c0
+        sta VPK_CLK
+        and #$c0
+        sta vpk_hbtn                ; bit 7 REV, bit 6 FWD pressed
+        nop
+        sta VPK_CLK
+        nop
+        nop
+        bit tmp
+        sta VPK_CLK
+        nop
+        nop
+        bit tmp
+        sta VPK_CLK
 .ifndef STUB_MIDI
         lda midi_kbd_off            ; keyboard disabled by a controller (SysEx): no scan
         beq vx_tscan
@@ -728,6 +786,7 @@ vx_pproc:
         sta vx_key,x
         sta vx_new,x
         sta vx_nn,x
+        jsr vx_stamp
         lda vx_v
         sta vx_vel,x
         lda vx_gate,x
@@ -771,6 +830,7 @@ vx_uproc:
         sta vx_key,x
         sta vx_new,x
         sta vx_nn,x
+        jsr vx_stamp
         lda vx_v
         sta vx_vel,x
         jmp @next
@@ -2008,7 +2068,18 @@ vg_voice:
 ; ------------------------------------------------------------------ arpeggiator (stock $FA7F-$FC1B)
 ; Notes come from the keys held on the side (vx_nn bit 7), played on the voice that holds the key; one step
 ; per rising edge of the side's arpeggiator clock (RIGHT: en_aphase; LEFT: en_aphase or the sign of the
-; LEFT LFO1/LFO2 phase, PF_ARP_CLK_L). Modes (stock encoding): 0 down, 1 random, 2 up, 3 up/down.
+; LEFT LFO1/LFO2 phase, PF_ARP_CLK_L). Modes (stock encoding): 0 down, 1 random, 2 up, 3 up/down; NeoV8:
+; bit 2 = as played (6: the keys in the order they went down, oldest first; walked like DOWN on their age).
+; Octave range PF_ARP_OCT_R/L 1-4 (NeoV8): the voice sounds its key + 12 x vx_aoc (at most note 127); the
+; octave moves on at each wrap (up / as played: +1, down: -1, up/down: through all octaves, then turns),
+; random picks one. Range 1 runs exactly the stock code (no extra random draw).
+
+; key-down stamp of voice X (as-played order); A lost
+vx_stamp:
+        inc vx_ordc
+        lda vx_ordc
+        sta vx_ord,x
+        rts
 
 ; Z = 0 when the arpeggiator of side vx_s runs.
 vx_arprun:
@@ -2108,6 +2179,10 @@ vx_arp:
 @step:  jsr vx_clipset
         ldx vx_s
         lda PERF+PF_ARP_MODE_R,x
+        and #4
+        sta vx_apl                  ; as played: DOWN on the keys' age
+        bne @down
+        lda PERF+PF_ARP_MODE_R,x
         and #3
         beq @down
         cmp #2
@@ -2124,15 +2199,17 @@ vx_afind:                           ; next note in the direction, wrapping (with
         jsr vx_ascan
         lda vx_af5
         cmp vx_abest
-        bne vx_aplay
-        eor #$7f
+        beq @wrap
+        jmp vx_aplay
+@wrap:  eor #$7f
         sta vx_aprv
         jsr vx_aoct
+        jsr vx_awrap                ; octave range: next octave
         jsr vx_ascan
         lda vx_abest
         cmp vx_af5
         bne vx_aplay
-        rts                         ; nothing held
+        jmp vx_areset               ; nothing held: the next arpeggio starts at its first octave
 vx_aud: ldx vx_s                    ; up/down: scan the current direction, turn at the end
         ldy vx_adir,x
         lda vx_udtab,y
@@ -2141,7 +2218,13 @@ vx_aud: ldx vx_s                    ; up/down: scan the current direction, turn 
         lda vx_abest
         cmp vx_af5
         bne vx_aplay
+        jsr vx_audoct               ; octave range: more octaves this way? start them over
+        bcc @end
         lda vx_af5
+        eor #$7f
+        sta vx_aprv
+        jmp vx_afind
+@end:   lda vx_af5
         bne @turn
         jsr vx_aoct                 ; (turning at the bottom steps the auto-octave)
 @turn:  ldx vx_s
@@ -2167,15 +2250,29 @@ vx_aprev:
         jsr vx_abs
         lda vx_note,x
         sta vx_new,x
+        ldy vx_apl
+        bne @pl
         and #$7f
+        ldy vx_s
+        sec
+        sbc vx_aofs,y               ; the key, without the octave-range offset
+        bcs @s
+        lda #0
+@s:     sta vx_aprv
+        rts
+@pl:    lda vx_nn,x
+        jsr vx_akv
         sta vx_aprv
         rts
 
-; Play held note vx_abest on voice vx_ay (relative): gate on, velocity tapers.
+; Play the key of voice vx_ay (relative): gate on, velocity tapers.
 vx_aplay:
         ldy vx_ay
-        lda vx_abest
-vx_aplay2:
+        jsr vx_abs
+        lda vx_nn,x                 ; (vx_abest is the key's age when as played)
+vx_aplay2:                          ; A = key (bit 7 ignored), Y = voice (relative)
+        and #$7f
+        jsr vx_atrans
         ora #$80
         pha
         ldx vx_s
@@ -2202,7 +2299,7 @@ vx_ascan:
 @l:     jsr vx_abs
         lda vx_nn,x
         bpl @n
-        and #$7f
+        jsr vx_akv
         cmp vx_aprv
         beq @n
         jsr vx_ainv
@@ -2215,6 +2312,124 @@ vx_ascan:
 @n:     dey
         bpl @l
         rts
+; A = vx_nn of voice X -> the value the scan orders: the note, or (as played) the key's age 1-126. X, Y kept.
+vx_akv:
+        and #$7f
+        pha
+        lda vx_apl
+        bne @age
+        pla
+        rts
+@age:   pla
+        lda vx_ordc
+        sec
+        sbc vx_ord,x                ; 0 = the newest key
+        cmp #125
+        bcs @old
+        adc #1                      ; 1-125 (C=0): 0 means "not found" to the scan
+        rts
+@old:   lda #126
+        rts
+
+; A = key -> A = key + 12 x octave of side vx_s (at most 127), vx_aofs = the offset used. Y kept.
+vx_atrans:
+        sta vx_akn
+        ldx vx_s
+        jsr vx_amax
+        cmp vx_aoc,x
+        bcs @k
+        sta vx_aoc,x                ; range lowered meanwhile
+@k:     lda vx_aoc,x
+        tax
+        lda vx_o12,x
+@c:     sta vx_akf
+        clc
+        adc vx_akn
+        bpl @ok
+        lda vx_akf                  ; above 127: one octave less
+        sec
+        sbc #12
+        bcs @c                      ; always
+@ok:    ldx vx_s
+        pha
+        lda vx_akf
+        sta vx_aofs,x
+        pla
+        rts
+vx_o12:     .byte 0, 12, 24, 36
+
+; X = side -> A = octave range - 1 (0-3), Z set from A. X, Y kept.
+vx_amax:
+        lda PERF+PF_ARP_OCT_R,x
+        beq @r
+        sec
+        sbc #1
+        cmp #4
+        bcc @z
+        lda #3
+@z:     ora #0
+@r:     rts
+
+; Wrap of a one-way arpeggio: the next octave (up / as played: +1, down: -1, wrapping in the range).
+vx_awrap:
+        ldx vx_s
+        jsr vx_amax
+        sta vx_akf
+        lda vx_af5
+        ora vx_apl
+        beq @dn
+        lda vx_aoc,x
+        cmp vx_akf
+        bcs @z
+        inc vx_aoc,x
+        rts
+@z:     lda #0
+        sta vx_aoc,x
+        rts
+@dn:    lda vx_aoc,x
+        beq @top
+        cmp vx_akf
+        beq @d
+        bcs @top
+@d:     dec vx_aoc,x
+        rts
+@top:   lda vx_akf
+        sta vx_aoc,x
+        rts
+
+; Up/down at the end of a direction: C = 1 when the octave moved on (up: +1 below the top, down: -1 above 0).
+vx_audoct:
+        ldx vx_s
+        jsr vx_amax
+        sta vx_akf
+        lda vx_aoc,x
+        ldy vx_af5
+        beq @dn
+        cmp vx_akf
+        bcs @no
+        inc vx_aoc,x
+        sec
+        rts
+@dn:    cmp #0
+        beq @no
+        dec vx_aoc,x
+        sec
+        rts
+@no:    clc
+        rts
+
+; Nothing held: up / as played start at octave 0, down at the top one.
+vx_areset:
+        ldx vx_s
+        jsr vx_amax
+        ldy vx_af5
+        bne @z
+        ldy vx_apl
+        beq @s
+@z:     lda #0
+@s:     sta vx_aoc,x
+        rts
+
 ; Going down: carry inverted (A preserved).
 vx_ainv:
         pha
@@ -2264,7 +2479,24 @@ vx_arnd:
         jsr vx_aroct
 @nl:    pla
         sta vx_s
-        ldy vx_ay
+        ldx vx_s                    ; octave range > 1: a random octave too (range 1: stock, no extra draw)
+        jsr vx_amax
+        beq @p
+        sta vx_akf
+        php
+        sei
+        jsr lfo_random
+        plp
+        and #3
+@m:     cmp vx_akf
+        bcc @oc
+        beq @oc
+        clc
+        sbc vx_akf                  ; - (range)
+        bcs @m                      ; always
+@oc:     ldx vx_s
+        sta vx_aoc,x
+@p:     ldy vx_ay
         jsr vx_abs
         lda vx_nn,x
         jmp vx_aplay2

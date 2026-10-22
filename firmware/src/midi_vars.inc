@@ -34,6 +34,10 @@ midi_sxcount: .res 1        ; data blocks stored from SysEx (programs, steps, gl
 midi_mon:   .res 3          ; last channel message received: status, data1, data2 (MIDI monitor)
 midi_dmask: .res 1          ; background dump parts left: bit0 programs, bit1 steps, bit2 globals, bit3 taper block
 midi_dnum:  .res 1          ; background dump: next program / step number
+midi_tobuf: .res 1          ; non-zero: midi_tx stages into midi_dbuf (background dump message being built)
+midi_dlen:  .res 1          ; staged dump message: length (0 = none), bytes already queued
+midi_dpos:  .res 1
+midi_dcnt:  .res 1          ; chunk countdown
 ; ---- private
 midi_sxovf: .res 1          ; SysEx longer than MIDI_SXMAX: dropped at EOX
 midi_dmsb:  .res 1          ; last data entry MSB
@@ -51,3 +55,6 @@ midi_txbuf: .res 256
 midi_sxbuf: .res MIDI_SXMAX ; last SysEx: [0] = ID (3, $7E, ...), [1] = command byte, ... (no F0 / F7)
 
         .bss
+
+        .segment "BSS2"
+midi_dbuf:  .res 140        ; background dump: the message being queued (largest: globals, 132 bytes)

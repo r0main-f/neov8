@@ -134,7 +134,7 @@ describe('NeoV8 ROM: panel edits and recalls go out over MIDI (same bytes as the
 describe('NeoV8 ROM: program parameter CCs received', () => {
   const recv = (s: Both, bytes: number[]) => {
     s.p.midiIn(bytes); s.p.run(20);
-    s.b.midiIn(bytes); s.b.run(Math.ceil(bytes.length * 0.32) + 20);
+    s.b.midiIn(bytes); s.b.run(Math.ceil(bytes.length * 0.32) + 60); // a received CC applies the program (~20 ms main loop)
   };
 
   it('CC on a side channel sets that edit buffer (scaled), nothing is sent back', () => {

@@ -23,6 +23,8 @@ fsw_init:
         and #$3f
         sta fsw_stable
         sta fsw_last
+        lda #1                      ; VPK-5 REV / FWD: not armed until both are seen released (voice.asm vk_btn)
+        sta vb_stable
         rts
 
 ; Main loop: debounce (two equal reads), then fire the changed switches.
@@ -67,6 +69,28 @@ fsw_poll:
         cpy #18
         bne @sw
         rts
+
+; VPK-5 front buttons REV / FWD: presses found by the tick (voice.asm vk_btn: debounce, auto-repeat) are
+; sent here like the panel's REV / FWD (stock $FCAC).
+vpk_btn_poll:
+        lda vb_pend
+        beq @r
+        php
+        sei
+        lda vb_pend
+        ldx #0
+        stx vb_pend
+        plp
+        sta vb_f
+        bit vb_f                    ; N = REV, V = FWD
+        bpl @nf
+        lda #BTN_REV
+        jsr fsw_send
+@nf:    bit vb_f
+        bvc @r
+        lda #BTN_FWD
+        jmp fsw_send
+@r:     rts
 
 fsw_send:
         bmi @r                      ; >= $80: no function

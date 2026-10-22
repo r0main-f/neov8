@@ -61,6 +61,7 @@ Display byte 9 bit 2 (tempo LED) belongs to the arp clock: the UI preserves it.
     - bits 3-2: arp octaves L − 1
     - bits 5-4: HOLD (L, R)
     - bit 6: ARP PAUSE
+    - bit 7: arpeggio as played (mode 6; the stock step keeps UP)
 - **Globals:** `NV_GLOBALS`. They are initialised on first boot (no `"N8"` at `NV_MAGIC`), together with
   `NV_VERSION = 1`, an empty undo slot (`NV_UNDO = $FF`) and a zeroed step extension. Programs and steps are not
   touched.

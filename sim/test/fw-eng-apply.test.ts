@@ -35,7 +35,7 @@ describe.skipIf(!hasStock)('engine parity: program apply', () => {
     bram[0x19a0 + i] = 0x40; bram[0x19b0 + i] = 0x00; // scale trim
     bram[0x19c0 + i] = 0xf0 + (i % 16); bram[0x19d0 + i] = (i * 37) & 0xfe; // PW calibration
   }
-  beforeAll(() => buildFirmware(BUILD, ['STUB_UI', 'STUB_MIDI', 'STUB_VX', 'STUB_ENV', 'STUB_LFO']));
+  beforeAll(() => buildFirmware(BUILD, ['STOCK_TABLES', 'STUB_UI', 'STUB_MIDI', 'STUB_VX', 'STUB_ENV', 'STUB_LFO']));
 
   function boot(rom: Uint8Array) {
     const b = new MachineBackend('x', rom, bram);

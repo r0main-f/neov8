@@ -179,7 +179,7 @@ const PERF2: Ev[] = [
 ];
 
 describe.skipIf(!hasStock)('polysequencer', () => {
-  beforeAll(() => { buildFirmware(BUILD, ['STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); });
+  beforeAll(() => { buildFirmware(BUILD, ['STOCK_TABLES', 'STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); });
 
   it('records channel 1 like the stock (quantize 16th) and plays it back', () => {
     const { st, ne } = pair();
@@ -392,7 +392,7 @@ function neo() {
 const keysDown = (ne: MachineBackend) => [...ne.machine.ram.slice(S.vx_key, S.vx_key + 8)].filter((k) => k & 0x80).map((k) => k & 0x7f).sort();
 
 describe('polysequencer, NeoV8 additions', () => {
-  beforeAll(() => { if (!S.seq_ev) { buildFirmware(BUILD, ['STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); } });
+  beforeAll(() => { if (!S.seq_ev) { buildFirmware(BUILD, ['STOCK_TABLES', 'STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); } });
 
   it('start checks: nothing selected, nothing to play, song needs both channels, song with REC, memory full', () => {
     const ne = neo();

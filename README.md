@@ -40,6 +40,9 @@ npm test           # scenarios + CPU + stock ROM + firmware tests (needs cc65: b
 * Phase 1 — simulator + NeoV8 navigation prototype: **usable**, awaiting UX review
 * Phase 2 — 6502 machine emulator: **the stock Rev4 OS runs and is navigable in the panel** (buttons, display,
   LEDs, pots, VPK-5 keyboard decoded from the ROM)
-* Phase 3 — NeoV8 firmware (6502 assembly, ca65): step 1 skeleton running in the emulator
-  (boot, chip init, 488 Hz tick, CV refresh, panel, pot ADC) — `npm run fw`
-* Phase 4 — bring-up on real hardware
+* Phase 3 — NeoV8 firmware (6502 assembly, ca65): **v0.8** — full OS in the emulator: engine at parity with the
+  stock ROM (voices, envelopes, LFOs, mod system, arpeggiator with octave range and as-played order,
+  polysequencer), NeoV8 UI (edit pages, SYSTEM menu, store/compare/undo), MIDI (channels, filters, CC map +
+  NRPN in and out, legacy and NeoV8 SysEx, clock), autotune — `npm run fw`. The ROM uses NeoV8's own response
+  curves (`tools/gen-curves.mjs`), so it builds without the stock ROM and can be shared (GitHub releases).
+* Phase 4 — bring-up on real hardware (`docs/burning.md`): not started

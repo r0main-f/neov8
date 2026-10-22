@@ -527,7 +527,14 @@ ui_leds_play:
         inx
         cpx #UI_PFLAG_N*3
         bne @f
-        lda PERF+PF_ARP_MODE_R      ; arp mode LEDs (0 down, 1 random, 2 up, 3 up/down)
+        lda PERF+PF_ARP_MODE_R      ; arp mode LEDs (0 down, 1 random, 2 up, 3 up/down, 6 as played: UP blinks)
+        and #4
+        beq @a0
+        ldx #BTN_ARP_UP
+        lda ui_ledloc,x
+        jsr ui_led_blink
+        jmp @a3
+@a0:    lda PERF+PF_ARP_MODE_R
         cmp #1
         bne @a1
         lda #BTN_ARP_RANDOM

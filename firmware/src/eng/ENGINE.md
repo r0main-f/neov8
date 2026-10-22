@@ -67,9 +67,9 @@ Measured tick cost (cycles, emulator, `sim/test/fw-eng-env.test.ts`, WHOLE 8, 8 
 
 | Load | NeoV8 avg / max | Stock Rev4 avg / max (same scenario) |
 |---|---|---|
-| 16 envelopes releasing, no key down | 3123 / 3202, 2302 / 2436, 2391 / 2562 | 4426 / 4571, 2503 / 2649, 2567 / 2877 |
-| 16 envelopes attacking, 8 keys held | 3534 / 3597, 2560 / 2699, 2654 / 2825 | 4670 / 4986, 2791 / 3007, 2943 / 3168 |
-| + 16 ADSR->PWM writes | 4358 / 4369, 2501 / 2657, 2594 / 2752 | 5006 / 5229, 2718 / 3007, 2833 / 3232 |
+| 16 envelopes releasing, no key down | 3211 / 3301, 2413 / 2544, 2489 / 2658 | 4426 / 4571, 2503 / 2649, 2567 / 2877 |
+| 16 envelopes attacking, 8 keys held | 3609 / 3684, 2680 / 2816, 2761 / 2930 | 4670 / 4986, 2791 / 3007, 2943 / 3168 |
+| + 16 ADSR->PWM writes | 4439 / 4456, 2620 / 2775, 2702 / 2858 | 5006 / 5229, 2718 / 3007, 2833 / 3232 |
 
 (budget 4097; idle: about 2350 / 2440 / 2560). The VPK-5 scan costs 790 cycles idle, +33 per key held.
 
@@ -110,7 +110,20 @@ LEFT LFO1/LFO2 phase (`PF_ARP_CLK_L` 1/2). Modes `PF_ARP_MODE_R/L` (0 down, 1 ra
 `PF_KBDGATE` (bit0 RIGHT, bit1 LEFT: the held chord gated by the clock); `PF_ARP_RETRIG` (non-zero: the first
 key down restarts the clock high: `vx_clkretrig` writes clock.asm's en_tdiv6/en_tcount and calls clk_out);
 `PF_ARP_SYNC` (non-zero: the RIGHT side's first key restarts the LEFT LFO used as LEFT arp clock). Unison +
-arpeggiator: the unison note restarts on every rising edge. Not done: `PF_ARP_OCT_R/L` ranges 2-4 (behave as 1).
+arpeggiator: the unison note restarts on every rising edge.
+
+NeoV8 additions (`sim/test/fw-eng-voice.test.ts`, NeoV8 arpeggiator): **octave range** `PF_ARP_OCT_R/L` 1-4 - the
+played voice sounds its key + 12 x `vx_aoc` (an octave less above note 127); at each wrap up and as played go one
+octave up, down one octave down (starting from the top one), up/down climbs through all octaves before it turns,
+random draws an octave (only when the range is > 1, so range 1 keeps the stock random sequence). **As played**
+(mode 6 = bit 2): every key-down stamps its voice (`vx_ord`); the scan orders the keys by age instead of pitch and
+walks them like DOWN, oldest first. Range 1 with modes 0-3 runs the stock code path (parity tests).
+
+VPK-5 front buttons REV / FWD (stock $FC4F/$FCAC): read every tick in the frame header (after clocks 2 and 3,
+active low) into `vpk_hbtn`; every phase-1 tick (6 ms, called by eng_tick; the stock: every 5th tick) `vk_btn` debounces (two equal
+samples), arms only after both were seen released, and queues presses in `vb_pend` (repeat after 106 samples =
+0.65 s, then every 25 = 0.15 s, the stock timing); the main loop
+(`fsw.asm vpk_btn_poll`) sends them as the panel's REV / FWD.
 
 ## Envelope module (env.asm)
 

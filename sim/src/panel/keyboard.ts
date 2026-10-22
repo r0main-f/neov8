@@ -31,6 +31,21 @@ export class Keyboard {
     const whites = [];
     for (let n = LOW; n <= HIGH; n++) if (!isBlack(n)) whites.push(n);
     const W = 22;
+    const fr = document.createElement('div'); // VPK-5 front buttons
+    fr.className = 'kbd-btns';
+    for (const [id, label] of [['rev', 'REV'], ['fwd', 'FWD']] as const) {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.title = `keyboard ${label} (hold: auto-repeat on the ROM)`;
+      b.addEventListener('mousedown', (ev) => {
+        ev.preventDefault();
+        this.backend.kbdButton?.(id, true);
+        const up = () => { this.backend.kbdButton?.(id, false); window.removeEventListener('mouseup', up); };
+        window.addEventListener('mouseup', up);
+      });
+      fr.appendChild(b);
+    }
+    host.appendChild(fr);
     this.svg = document.createElementNS(NS, 'svg');
     this.svg.setAttribute('viewBox', `0 0 ${whites.length * W} 110`);
     this.svg.setAttribute('class', 'keyboard');

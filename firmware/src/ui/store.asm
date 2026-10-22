@@ -170,6 +170,12 @@ ui_recall_step_n:
         lsr
         and #1
         sta PERF+PF_ARP_PAUSE
+        lda UI_NV_STEPEXT,x
+        bpl @npl
+        lda #6                      ; arpeggio as played
+        sta PERF+PF_ARP_MODE_R
+        sta PERF+PF_ARP_MODE_L
+@npl:
         ldx #1
         lda PERF+PF_PROG_L
         jsr ui_load_prog
@@ -294,7 +300,9 @@ ui_store_commit:
         lda ui_st_dest              ; ---- program
         jsr ui_prog_addr
         jsr ui_bram_probe
-        bcc ui_protected
+        bcs @pok
+        jmp ui_protected
+@pok:
         ldy #PROG_SIZE-1            ; keep the overwritten program for undo
 @u:     lda (ui_p),y
         sta NV_UNDO+1,y
@@ -345,6 +353,12 @@ ui_store_commit:
         sbc #1
         and #3
         ora ui_a
+        sta ui_a
+        lda PERF+PF_ARP_MODE_R      ; bit 7: arpeggio as played (the stock step keeps UP)
+        and #4
+        beq @np
+        lda #$80
+@np:    ora ui_a
         sta UI_NV_STEPEXT,x
         stx PERF+PF_STEP
         stx NV_GLOBALS+G_LAST_STEP

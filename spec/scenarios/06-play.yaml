@@ -34,3 +34,34 @@
   steps:
     - press: [a440, oct_l]
     - expect: {display: "Ao  L2", state: {perf: {arpOctL: 2}}}
+
+- name: A440+ARP UP plays the arpeggio as played (UP blinks); DOWN or UP leave it
+  steps:
+    - press: [a440, arp_up]
+    - expect: {leds: {arp_up: blink, arp_down: "off", arp_random: "off"}, state: {perf: {arpMode: played}}}
+    - press: arp_down
+    - expect: {leds: {arp_up: "off", arp_down: "on"}, state: {perf: {arpMode: down}}}
+    - press: [a440, arp_up]
+    - press: arp_up
+    - expect: {leds: {arp_up: "on"}, state: {perf: {arpMode: up}}}
+
+- name: the as-played order and the octave range are stored with the step
+  steps:
+    - press: [a440, arp_up]
+    - press: [a440, oct_r]
+    - press: [a440, oct_r]
+    - expect: {display: "Ao  r3", state: {perf: {arpMode: played, arpOctR: 3}}}
+    - press: step_load
+    - press: k2
+    - press: k7
+    - press: store
+    - expect: {state: {step: 27}}
+    - press: arp_random
+    - press: [a440, oct_r]
+    - press: step_enable
+    - press: k0
+    - press: k0
+    - press: step_enable
+    - press: k2
+    - press: k7
+    - expect: {leds: {arp_up: blink}, state: {step: 27, perf: {arpMode: played, arpOctR: 3}}}

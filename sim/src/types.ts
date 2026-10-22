@@ -49,6 +49,8 @@ export interface Backend {
   frame(): Frame;
   /** free-form state for the inspector and the tests */
   inspect(): Record<string, unknown>;
+  /** VPK-5 keyboard front buttons REV / FWD (the same as the panel's; the ROM adds auto-repeat) */
+  kbdButton?(id: 'fwd' | 'rev', down: boolean): void;
   /** bytes the instrument sends to MIDI OUT (SysEx dumps etc.) since the last call */
   drainMidiOut(): number[];
 }

@@ -24,8 +24,9 @@ footswitches) so both firmwares can be swapped freely.
 | CS6 | $C000-$DFFF | V8600042 | `firmware/build/neov8-C000.bin` |
 | CS7 | $E000-$FFFF | V8600043 | `firmware/build/neov8-E000.bin` |
 
-Build: `npm run fw` (needs cc65 and your stock ROM dump in `Voyetra 8 synths/`, from which the response
-curves are extracted at build time).
+Build: `npm run fw` (needs cc65 only), or take the four images from a GitHub release. The images carry
+NeoV8's own response curves (`tools/gen-curves.mjs`), no data of the original ROM. The parity tests
+(`npm test`) also use your stock ROM dump in `Voyetra 8 synths/` when it is there.
 
 ## 3. Bring-up order (Phase 4 plan)
 1. "Hello" image: the splash `nEO 01`, every button shows its code, every knob its value — checks the 8279,

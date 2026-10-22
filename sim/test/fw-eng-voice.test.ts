@@ -78,7 +78,7 @@ const glideOff = (p: Uint8Array) => { p[0x0a] &= 0x80; return p; };
 
 describe.skipIf(!hasStock)('engine parity: voices', () => {
   let S: Record<string, number>;
-  beforeAll(() => { buildFirmware(BUILD, ['STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); });
+  beforeAll(() => { buildFirmware(BUILD, ['STOCK_TABLES', 'STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); });
 
   /** Plays a sequence (90 ms between events: every velocity timing has completed) and compares voice states. */
   function playCompare(st: MachineBackend, ne: MachineBackend, seq: [number, boolean, number][], gap = 90) {
@@ -322,5 +322,77 @@ describe.skipIf(!hasStock)('engine parity: voices', () => {
   it('arpeggiator SPLIT: RIGHT up on the tempo clock, LEFT down', () => {
     const { ea, eb } = arpRun({ mode: 'split', arpR: 2, arpL: 0, speed: 110, notes: [40, 45, 49, 64, 67, 71], ms: 2500 });
     sameSeq(ea, eb, 40); // both sides step on the same edge: the second one waits for the first one's note-on
+  });
+});
+
+// NeoV8 arpeggiator additions (no stock counterpart): octave range 2-4 (PF_ARP_OCT_R/L) and the as-played order
+// (mode 6). Range 1 and modes 0-3 are covered by the parity tests above.
+describe('NeoV8 arpeggiator: octave range and as-played order', () => {
+  const BUILD_A = 'build-eng-arp';
+  const ARP_OCT_R = 42;
+  let A: Record<string, number> = {};
+  beforeAll(() => { buildFirmware(BUILD_A, ['STUB_UI', 'STUB_TUNE']); A = neoSymbols(BUILD_A); }, 120_000);
+
+  /** Sounding notes of the RIGHT side's arpeggio, in order (rising edges of vx_note bit 7). */
+  function arp(o: { mode: number; range: number; notes: number[]; ms?: number; speed?: number }) {
+    const progs = Array.from({ length: 8 }, (_, i) => randomProgram(900 + i));
+    for (const p of progs) p[0x0a] = (p[0x0a] & 0x80) | 0; // glide time 0
+    const ne = new MachineBackend('neo', loadNeoRomFrom(BUILD_A), bramWith(progs));
+    ne.run(1500);
+    for (const [off, v] of [[PF.KBMODE, 0], [PF.OCT_R, 1], [PF.UNISON, 0], [PF.ARP_ON, 1], [PF.ARP_MODE_R, o.mode],
+      [PF.ARP_SPEED, o.speed ?? 110], [PF.ARP_RETRIG, 1], [ARP_OCT_R, o.range]] as [number, number][]) tp(ne, 5, v, off);
+    tp(ne, 4);
+    tp(ne, 1, 3, 0);
+    ne.run(300);
+    ne.machine.ram[A.lfo_rnd] = 0x37;
+    for (const n of o.notes) { ne.key(n, true, 100); ne.run(20); }
+    const out: number[] = [];
+    const prev = Array(8).fill(0);
+    for (let t = 0; t < (o.ms ?? 4000); t += 2) {
+      ne.run(2);
+      for (let v = 0; v < 8; v++) {
+        const x = ne.machine.ram[A.vx_note + v];
+        if ((x & 0x80) && !(prev[v] & 0x80)) out.push(x & 0x7f);
+        prev[v] = x;
+      }
+    }
+    expect(ne.machine.cpu.illegal).toBe(0);
+    return out;
+  }
+  /** `seq` (after a warm-up) repeats `cycle`, starting anywhere in it. */
+  function cycles(seq: number[], cycle: number[]) {
+    const s = seq.slice(cycle.length); // the first steps may start while keys are still going down
+    expect(s.length).toBeGreaterThan(cycle.length * 2);
+    const k = cycle.indexOf(s[0]);
+    expect(k, `${s.join(' ')} vs ${cycle.join(' ')}`).toBeGreaterThanOrEqual(0);
+    expect(s, `cycle ${cycle.join(' ')}`).toEqual(s.map((_, i) => cycle[(k + i) % cycle.length]));
+  }
+
+  it('up, range 2: the held notes, then an octave higher', () => {
+    cycles(arp({ mode: 2, range: 2, notes: [48, 52, 55] }), [48, 52, 55, 60, 64, 67]);
+  });
+  it('down, range 3: from the top octave down', () => {
+    cycles(arp({ mode: 0, range: 3, notes: [48, 52, 55] }), [79, 76, 72, 67, 64, 60, 55, 52, 48]);
+  });
+  it('up/down, range 2: through both octaves, then back', () => {
+    cycles(arp({ mode: 3, range: 2, notes: [48, 52, 55] }), [48, 52, 55, 60, 64, 67, 64, 60, 55, 52]);
+  });
+  it('range 4 stays at or below note 127 (an octave less up there)', () => {
+    const s = arp({ mode: 2, range: 4, notes: [91, 96] }); // 96 + 36 = 132: plays 120
+    expect(Math.max(...s)).toBeLessThanOrEqual(127);
+    cycles(s, [91, 96, 103, 108, 115, 120, 127, 120]);
+  });
+  it('random, range 3: held notes in random octaves of the range', () => {
+    const s = arp({ mode: 1, range: 3, notes: [50, 55, 59], ms: 6000 });
+    const ok = new Set([50, 55, 59].flatMap((n) => [n, n + 12, n + 24]));
+    expect(s.length).toBeGreaterThan(20);
+    expect(s.every((n) => ok.has(n))).toBe(true);
+    expect(new Set(s.map((n) => Math.floor((n - 50) / 12))).size).toBe(3);
+  });
+  it('as played: the order the keys went down, not their pitch', () => {
+    cycles(arp({ mode: 6, range: 1, notes: [55, 48, 60, 52] }), [55, 48, 60, 52]);
+  });
+  it('as played, range 2', () => {
+    cycles(arp({ mode: 6, range: 2, notes: [55, 48, 52] }), [55, 48, 52, 67, 60, 64]);
   });
 });

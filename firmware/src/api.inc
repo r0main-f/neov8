@@ -24,7 +24,7 @@ PF_HOLD     = 8             ; bits
 PF_RELDEF   = 9             ; release defeat bits
 PF_PBDEF    = 10            ; pitch-bend defeat bits
 PF_ARP_ON   = 11            ; bits
-PF_ARP_MODE_R = 12          ; 0 down, 1 random, 2 up, 3 up/down (stock encoding)
+PF_ARP_MODE_R = 12          ; 0 down, 1 random, 2 up, 3 up/down (stock encoding); NeoV8: 6 as played (bit 2)
 PF_ARP_MODE_L = 13
 PF_ARP_PAUSE = 14
 PF_ARP_SPEED = 15           ; 0-127
@@ -151,7 +151,7 @@ G_SIZE      = 64
 ; ============================================================== module API (global labels with module prefix)
 ; core:  panel_*, adc_read, cv_*            (main.s, panel.asm, adc.asm, cv.asm)
 FW_VERSION_MAJ = 0
-FW_VERSION_MIN = 1
+FW_VERSION_MIN = 8
 ; eng:   eng_init  eng_tick (IRQ, every 2.05 ms)  eng_service (main loop)
 ;        eng_apply_prog (X = side whose edit buffer changed: fast per-side path; X >= 2 = both, full)   eng_apply_perf   eng_key_on (A note, Y vel)  eng_key_off (A note)
 ;        eng_side_on (X side, A note, Y vel)  eng_side_off (X side, A note)  eng_all_off
