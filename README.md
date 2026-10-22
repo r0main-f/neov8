@@ -44,7 +44,8 @@ npm test           # scenarios + CPU + stock ROM + firmware tests (needs cc65: b
   stock ROM (voices, envelopes, LFOs, mod system, arpeggiator with octave range and as-played order,
   polysequencer), NeoV8 UI (edit pages, SYSTEM menu, store/compare/undo), MIDI (channels, filters, CC map +
   NRPN in and out, legacy and NeoV8 SysEx, clock), autotune — `npm run fw`. The ROM uses NeoV8's own response
-  curves (`tools/gen-curves.mjs`), so it builds without the stock ROM and can be shared (GitHub releases).
+  curves (`tools/gen-curves.mjs`) except the ADSR rate table, which is the original one so envelope times
+  match a stock unit; it builds without the stock ROM (GitHub releases).
 * Phase 4 — bring-up on real hardware (`docs/burning.md`): not started
 
 ## Sound engine (in progress)
@@ -71,6 +72,8 @@ NeoV8 is an independent project, not affiliated with or endorsed by Octave-Plate
 successors. "Voyetra" and "Octave-Plateau" are names of their respective owners, used here only to say which
 instrument this firmware is for. The original Rev4 firmware, manuals and ROM dumps are not part of this
 repository and are not covered by these licenses: the release ROM images use NeoV8's own response curves
-(`tools/gen-curves.mjs`); `npm run fw:stock` builds a personal image from your own stock ROM dump, which you
+(`tools/gen-curves.mjs`), with one exception: the 128-entry ADSR rate table (256 bytes) is copied from the
+original Rev4 ROM so envelope times match a stock unit. It is a table of numbers that sets envelope speeds,
+kept here for interoperability with existing patches; it is excluded from the licenses above. `npm run fw:stock` builds a personal image from your own stock ROM dump, which you
 must not distribute.
 

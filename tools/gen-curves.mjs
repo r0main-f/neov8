@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// NeoV8's own response curves -> firmware/src/eng/curves.inc (committed). No data from the original
-// firmware: every table is computed from a formula or designed here, so a NeoV8 ROM can be shared.
+// NeoV8's response curves -> firmware/src/eng/curves.inc (committed). Computed from formulas or designed here,
+// except the ADSR rate table, which is the original Rev4 table (exact stock envelope times, user's choice).
 // The stock tables (tools/extract-tables.mjs, from your own ROM dump) are only used by the parity tests
 // (build define STOCK_TABLES) and by sim/test/curves.test.ts, which measures how close these curves are.
 //
 //   envelope level law      exponential, 14-bit DAC (x4)       stock: within 1 DAC step
 //   inverse level curve     logarithmic                        stock: within rounding
 //   parameter curve         exponential                        stock: within rounding
-//   ADSR rates              3 exponential/linear segments      stock: ~0.5 % mid range, up to ~30 % at a few settings
+//   ADSR rates              the ORIGINAL Rev4 table (user's choice: exact stock envelope times)
 //   tempo -> PTM T1 MSB     2 MHz timer arithmetic             stock: same values, 6 settable tempos shifted by 1 BPM
 //   velocity curves/tapers  NeoV8 designs                      own shapes (same end points and intent)
 import { writeFileSync } from 'node:fs';
@@ -30,15 +30,28 @@ const envInv = Array.from({ length: 256 }, (_, j) => Math.round((255 * Math.log(
 const PC_K = 0.0121;
 const paramCurve = Array.from({ length: 256 }, (_, i) => Math.round((255 * (Math.exp(PC_K * i) - 1)) / (Math.exp(PC_K * 255) - 1)));
 
-// ---- ADSR rate per time index (16 bit: bigger = faster): slow range, main range, fast range, saturated
-function adsrRate(i) {
+// ---- ADSR rate per time index (16 bit: bigger = faster): the ORIGINAL table of the Rev4 ROM ($8800 high bytes,
+// $8880 low bytes), kept by the user's decision (2026-10-22) so envelope times match a stock unit exactly. This is
+// Octave-Plateau data (see README, License). NeoV8's former formula (3 segments, within 1 % over the main range,
+// up to ~30 % off at a few settings) is kept below for reference and tests.
+export const ADSR_RATE_ORIGINAL = [
+  0, 0, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 22, 24, 28,
+  30, 34, 38, 42, 46, 52, 58, 62, 68, 74, 84, 90, 98, 110, 113, 117,
+  124, 130, 137, 145, 151, 159, 167, 176, 183, 193, 202, 213, 223, 234, 248, 254,
+  266, 279, 292, 308, 322, 337, 355, 374, 390, 411, 432, 450, 473, 496, 520, 545,
+  558, 570, 658, 754, 851, 955, 1051, 1156, 1268, 1372, 1485, 1605, 1717, 1838, 1966, 2087,
+  2223, 2352, 2488, 2624, 2769, 2913, 3066, 3218, 3379, 3539, 3700, 3869, 4037, 4214, 4398, 4583,
+  4775, 4968, 5169, 5369, 5578, 5795, 6012, 6236, 6461, 6702, 6943, 7183, 7440, 7697, 7962, 8235,
+  8516, 11333, 14833, 19167, 24536, 31190, 39441, 50935, 54956, 59274, 63914, 65535, 65535, 65535, 65535, 65535,
+];
+export function adsrRateFormula(i) {
   if (i < 2) return 0;
   if (i <= 65) return Math.max(1, Math.round(24.984126 * Math.exp(0.0488 * i) - 26));
   if (i <= 112) return Math.round(812.615989 * Math.exp(0.02388 * i) - 3271.7797);
   if (i <= 122) return Math.round(11333 + ((63914 - 11333) * (i - 113)) / 9);
   return 65535;
 }
-const adsr = Array.from({ length: 128 }, (_, i) => clamp(adsrRate(i), 0, 65535));
+const adsr = ADSR_RATE_ORIGINAL;
 
 // ---- tempo 20-255 BPM -> PTM T1 MSB: T1 = 1 250 000 / BPM (2 MHz, 96 clocks per beat), MSB rounded;
 // a BPM whose MSB repeats the previous one is not settable ($FF), so every settable tempo has its own value.

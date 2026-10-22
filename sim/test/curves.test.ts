@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CURVES } from '../../tools/gen-curves.mjs';
+import { CURVES, adsrRateFormula } from '../../tools/gen-curves.mjs';
 import { TABLES } from '../../tools/extract-tables.mjs';
 import { ROOT, hasStock, loadStockRom, buildFirmware, loadNeoRomFrom } from './helpers';
 
@@ -42,8 +42,8 @@ describe('NeoV8 response curves', () => {
   it('the default ROM holds none of the hand-shaped stock tables (no 32-byte stretch of them)', () => {
     if (!hasStock) return;
     const hay = Buffer.from(neo);
-    // (ADSR rates: the low bytes; the high bytes of an accurate fit are the same coarse steps)
-    const designed = ['tb_adsr_rate_lo', 'tb_taper_fact', 'tb_vel_vca', 'tb_vel_mod', 'tb_vel_att'];
+    // (the ADSR rate table is the original one by choice, see tools/gen-curves.mjs)
+    const designed = ['tb_taper_fact', 'tb_vel_vca', 'tb_vel_mod', 'tb_vel_att'];
     for (const [l, d] of Object.entries(stock).filter(([l]) => designed.includes(l))) {
       for (let i = 0; i + 32 <= d.length; i += 4) {
         const w = d.slice(i, i + 32);
@@ -62,12 +62,14 @@ describe.skipIf(!hasStock)('NeoV8 curves vs the stock tables (how close they are
   it('inverse level curve and parameter curve: within 1', () => {
     for (const l of ['tb_env_inv', 'tb_param_curve']) expect(Math.max(...ours[l].map((v, i) => Math.abs(v - stock[l][i]))), l).toBeLessThanOrEqual(1);
   });
-  it('ADSR rates: within 1 % over the main range (times 66-112), within 35 % anywhere', () => {
-    const a = adsr(ours), b = adsr(stock);
-    const rel = (i: number) => Math.abs(a[i] - b[i]) / Math.max(1, b[i]);
+  it('ADSR rates: the original table, exactly (envelope times match a stock unit)', () => {
+    expect(adsr(ours)).toEqual(adsr(stock));
+  });
+  it('ADSR rates: the former NeoV8 formula stays within 1 % over times 66-112, 35 % anywhere (reference)', () => {
+    const b = adsr(stock);
+    const rel = (i: number) => Math.abs(adsrRateFormula(i) - b[i]) / Math.max(1, b[i]);
     for (let i = 66; i <= 112; i++) expect(rel(i), `rate ${i}`).toBeLessThan(0.01);
     for (let i = 0; i < 128; i++) expect(rel(i), `rate ${i}`).toBeLessThan(0.35);
-    expect(a.slice(123)).toEqual(b.slice(123)); // saturated
   });
   it('tempo: the same timer values; at most 6 settable tempos moved by 1 BPM', () => {
     const vals = (t: number[]) => t.filter((v) => v !== 255);
