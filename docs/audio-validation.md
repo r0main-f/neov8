@@ -70,6 +70,9 @@ Sources used:
   numbers and modes read from the panel (L09/R34 = step 54, etc.) and says the patches were tuned and their
   filters adjusted. So it cannot be used for fitting; its dry filter sweeps with resonance (7:10, 9:00) remain a
   reference for the swept SSM2044's character.
+- The Doctor Mix demo (YouTube `QrGLSp1WzzY`, UVI's unit) steps through stored steps 10, 14, 18, 19 and 26
+  (programs L33/R09, R59, L72/R00, L22/R38, R11 on the display); none matches the steps of the four decoded tapes,
+  so that unit holds another bank. The presenter notes audible steps in a cutoff sweep, as the 7-bit Fc gives.
 - **No published measurements** of a real unit (levels, sweeps, envelope times) were found.
 
 ## 5. Recording protocol for a real unit (when available)
