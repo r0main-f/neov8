@@ -180,11 +180,13 @@ impl Engine {
     pub fn render(&mut self, l: &mut [f32], r: &mut [f32]) {
         let n = l.len().min(r.len());
         let whole = self.state.ctl.ic3 & 0x10 != 0; // $6304 = $FF in WHOLE 8 (voice.asm vx_split_latch)
+        // [left, right]. Voices 0-3 (side 0, the RIGHT program) reach the RIGHT jack (mixer card: pairs (0,1),(2,3)
+        // -> IC4A -> IC5A -> RIGHT); in WHOLE 8 the DG308s cross pairs (2,3) and (4,5) over through 220K.
         let mut pan = [[0.0f64; 2]; 8];
         for (v, pv) in pan.iter_mut().enumerate() {
             *pv = if whole {
-                match v / 2 { 0 => [1.0, 0.0], 1 => [1.0 - PAN_NEAR, PAN_NEAR], 2 => [PAN_NEAR, 1.0 - PAN_NEAR], _ => [0.0, 1.0] }
-            } else if v < 4 { [1.0, 0.0] } else { [0.0, 1.0] };
+                match v / 2 { 0 => [0.0, 1.0], 1 => [PAN_NEAR, 1.0 - PAN_NEAR], 2 => [1.0 - PAN_NEAR, PAN_NEAR], _ => [1.0, 0.0] }
+            } else if v < 4 { [0.0, 1.0] } else { [1.0, 0.0] };
         }
         let fs = self.sr;
         let fc_max = FC_MAX.min(0.45 * fs);
@@ -232,8 +234,9 @@ impl Engine {
                 out_r += s * pan[v][1];
             }
             let g = OUT_GAIN * self.master;
-            l[i] = (out_l * self.vol[0] * g) as f32;
-            r[i] = (out_r * self.vol[1] * g) as f32;
+            // output VCAs: side 0's volume ($53) on the RIGHT output, side 1's ($57) on the LEFT
+            l[i] = (out_l * self.vol[1] * g) as f32;
+            r[i] = (out_r * self.vol[0] * g) as f32;
         }
     }
 }
@@ -249,5 +252,41 @@ mod tests {
         assert!((vca_gain(10.0, 10.0) - 1.0).abs() < 1e-12);
         let (a, b) = (vca_gain(4.0, 10.0), vca_gain(6.0, 10.0));
         assert!((b - a - 2.0 / (10.0 - VCA_TH)).abs() < 1e-12);
+    }
+
+    /// One voice playing a saw with the filter open, everything else silent.
+    fn one_voice(v: usize, whole: bool) -> (f64, f64) {
+        let osc = vec![OscParams { tune: 94.0, scale: 1.0, pw50: 0x38 as f64 * 128.0, jitter: 0.0, fault: None }; 16];
+        let mut e = Engine::new(48_000.0, osc);
+        let st = &mut e.state;
+        st.mult = [255; 136];
+        let side = v / 4;
+        st.cv[8 * v + 7] = 60 * 128; // VCO1 pitch
+        st.cv[8 * v + 6] = 16300; // pulses off
+        st.cv[8 * v + 2] = 16300;
+        st.cv[0x44 + 8 * side] = 16383; // VCO1 level
+        st.cv[0x40 + 8 * side + v % 4] = 120 * 128; // cutoff open
+        st.cv[0x68 + v] = 16383; // voice VCA
+        st.cv[0x53] = 16383;
+        st.cv[0x57] = 16383;
+        st.ctl.ic1 = !0x04; // VCO1 saw (active low), side 0
+        st.ctl.ic2 = !0x04; // side 1
+        st.ctl.ic3 = if whole { 0x10 } else { 0x00 };
+        let (mut l, mut r) = (vec![0f32; 4800], vec![0f32; 4800]);
+        e.render(&mut l, &mut r);
+        let rms = |x: &[f32]| (x[2400..].iter().map(|s| (*s as f64).powi(2)).sum::<f64>() / 2400.0).sqrt();
+        (rms(&l), rms(&r))
+    }
+
+    #[test]
+    fn voices_0_3_are_the_right_output_and_whole_8_spreads_the_pairs() {
+        let (l, r) = one_voice(0, false);
+        assert!(r > 0.01 && l < r * 1e-3, "voice 0, split: L {l} R {r}");
+        let (l, r) = one_voice(5, false);
+        assert!(l > 0.01 && r < l * 1e-3, "voice 5, split: L {l} R {r}");
+        let (l, r) = one_voice(2, true);
+        assert!((l / r - PAN_NEAR / (1.0 - PAN_NEAR)).abs() < 0.01, "voice 2, whole: L {l} R {r}");
+        let (l, r) = one_voice(7, true);
+        assert!(r < l * 1e-3, "voice 7, whole: L {l} R {r}");
     }
 }
