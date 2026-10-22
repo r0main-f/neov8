@@ -199,7 +199,11 @@ eng_apply_prog:
 @full:  jsr ap_all
         jsr mod_save
         jmp vx_refresh
-@side:  jsr ap_side
+@side:  txa                         ; keep the side: ap_side ends in lfo_apply, which uses X
+        pha
+        jsr ap_side
+        pla
+        tax
         jsr ap_select               ; ap_side's sub-modules may have used en_buf
         jmp ap_depths               ; bank masks unchanged: only the depth values
 

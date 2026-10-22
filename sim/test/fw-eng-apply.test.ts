@@ -76,3 +76,32 @@ describe.skipIf(!hasStock)('engine parity: program apply', () => {
     if (!(p[0x12] & 0x80)) expect(neo.machine.cv[2] >> 7).toBe(p[0x26] & 0x7f); // VCO2 PW of voice 0
   });
 });
+
+// Fast apply path (eng_apply_prog @one): a recall whose routing bytes equal those in the matrix only rewrites the
+// side's static slots and depths. Regression: the depths went to the wrong side (X lost in lfo_apply), so the
+// LEFT side kept the previous program's depths. Full firmware (real modules), both sides, against the stock ROM.
+describe.skipIf(!hasStock)('engine parity: fast apply keeps the side', () => {
+  const FULL = 'build-apply-full';
+  beforeAll(() => buildFirmware(FULL), 120_000);
+
+  for (const side of ['call_l', 'call_r'] as const) {
+    it(`${side}: same routing, new depths`, () => {
+      const programs = Array.from({ length: 100 }, (_, i) => randomProgram(2000 + i));
+      for (const i of [0, 1, 2, 3, 4, 5, 0x1e]) programs[6][i] = programs[5][i]; // same routing bytes
+      [0x10, 0x30, 0x50, 0x70].forEach((d, i) => { programs[5][6 + i] = d; programs[6][6 + i] = 0xf0 - d; });
+      const bram = bramWith(programs);
+      const boot = (rom: Uint8Array) => { const b = new MachineBackend('x', rom, bram); b.run(1500); return b; };
+      const stock = boot(loadStockRom());
+      const neo = boot(loadNeoRomFrom(FULL));
+      for (const b of [stock, neo]) {
+        press(b, 'kb_layer');
+        press(b, side, ...digits(5));
+        b.run(200);
+        press(b, side, ...digits(6));
+        b.run(300);
+      }
+      const slots = Array.from({ length: 8 }, (_, i) => 0x60 + i);
+      expect(diff(snapshot(stock.machine), snapshot(neo.machine), { slots, ctl: false })).toEqual([]);
+    });
+  }
+});
