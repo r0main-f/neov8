@@ -92,7 +92,13 @@ cv_mul:     .res 128        ; DAC1022 multiplier ($FF = full scale)
 .else
         .include "ui/ui.asm"
 .endif
+; Response curves: NeoV8's own (eng/curves.inc, tools/gen-curves.mjs) - or, for the parity tests against the
+; stock ROM, the original tables extracted from your own ROM dump (DEFS="-D STOCK_TABLES", never committed).
+.ifdef STOCK_TABLES
         .include "../gen/rev4-tables.inc"
+.else
+        .include "eng/curves.inc"
+.endif
 
 ; ------------------------------------------------------------------ reset
 reset:

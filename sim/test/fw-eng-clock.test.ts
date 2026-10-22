@@ -22,7 +22,7 @@ function blinkHalfPeriod(b: MachineBackend, ms: number): number {
 }
 
 describe.skipIf(!hasStock)('arpeggiator clock', () => {
-  beforeAll(() => buildFirmware(BUILD, ['STUB_UI', 'STUB_TUNE', 'STUB_VX', 'STUB_ENV', 'STUB_LFO']));
+  beforeAll(() => buildFirmware(BUILD, ['STOCK_TABLES', 'STUB_UI', 'STUB_TUNE', 'STUB_VX', 'STUB_ENV', 'STUB_LFO']));
 
   for (const speed of [0, 30, 64, 100, 127]) {
     it(`tempo at ARP SPEED ${speed} equals the stock`, () => {

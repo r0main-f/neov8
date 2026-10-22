@@ -7,7 +7,7 @@
 MIDI_OP_ID  = $03           ; Octave-Plateau manufacturer ID
 .ifndef FW_VERSION_MAJ
 FW_VERSION_MAJ = 0          ; TODO lead: move the firmware version to api.inc
-FW_VERSION_MIN = 1
+FW_VERSION_MIN = 8
 .endif
 
 ACR_BASE    = $15           ; /16 (500 kHz -> 31250 baud), 8N1, RTS low, TX IRQ off, RX IRQ off

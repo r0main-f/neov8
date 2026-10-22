@@ -84,7 +84,7 @@ const BASE: EnvP = { a2: 50, d2: 62, s2: 70, r2: 64, a1: 45, d1: 58, s1: 40, r1:
 
 describe.skipIf(!hasStock)('engine parity: envelopes', () => {
   let S: Record<string, number>;
-  beforeAll(() => { buildFirmware(BUILD, ['STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); SCAN_NEO = S.vx_tick; });
+  beforeAll(() => { buildFirmware(BUILD, ['STOCK_TABLES', 'STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); SCAN_NEO = S.vx_tick; });
 
   // Poly: attack/decay/sustain/release, a re-strike of the same note while it releases (same voice: assign
   // mode 0 reuses it, envelope retriggered from its current level), other voices with other velocities.

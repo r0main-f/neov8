@@ -151,7 +151,7 @@ G_SIZE      = 64
 ; ============================================================== module API (global labels with module prefix)
 ; core:  panel_*, adc_read, cv_*            (main.s, panel.asm, adc.asm, cv.asm)
 FW_VERSION_MAJ = 0
-FW_VERSION_MIN = 1
+FW_VERSION_MIN = 8
 ; eng:   eng_init  eng_tick (IRQ, every 2.05 ms)  eng_service (main loop)
 ;        eng_apply_prog (X = side whose edit buffer changed: fast per-side path; X >= 2 = both, full)   eng_apply_perf   eng_key_on (A note, Y vel)  eng_key_off (A note)
 ;        eng_side_on (X side, A note, Y vel)  eng_side_off (X side, A note)  eng_all_off

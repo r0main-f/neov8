@@ -78,7 +78,7 @@ const glideOff = (p: Uint8Array) => { p[0x0a] &= 0x80; return p; };
 
 describe.skipIf(!hasStock)('engine parity: voices', () => {
   let S: Record<string, number>;
-  beforeAll(() => { buildFirmware(BUILD, ['STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); });
+  beforeAll(() => { buildFirmware(BUILD, ['STOCK_TABLES', 'STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); });
 
   /** Plays a sequence (90 ms between events: every velocity timing has completed) and compares voice states. */
   function playCompare(st: MachineBackend, ne: MachineBackend, seq: [number, boolean, number][], gap = 90) {

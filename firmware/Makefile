@@ -5,13 +5,17 @@ BUILD ?= build
 MAIN ?= src/main.s
 DEFS ?=
 OBJ = $(BUILD)/main.o
-INC = $(wildcard src/*.inc) $(wildcard src/*.asm) $(wildcard src/*/*.asm) $(wildcard src/*/*.inc) $(wildcard test/*.asm) $(wildcard src/stubs/*) gen/rev4-tables.inc Makefile
+# The stock tables (extracted from your ROM dump) are only needed by parity builds: DEFS="-D STOCK_TABLES"
+ifneq (,$(findstring STOCK_TABLES,$(DEFS)))
+STOCKINC = gen/rev4-tables.inc
+endif
+INC = $(wildcard src/*.inc) $(wildcard src/*.asm) $(wildcard src/*/*.asm) $(wildcard src/*/*.inc) $(wildcard test/*.asm) $(wildcard src/stubs/*) $(STOCKINC) Makefile
 
 all: $(BUILD)/neov8.bin $(BUILD)/neov8-8000.bin size
 
 # Always reassemble (well under a second): the stub/define set of a bench may change between runs.
 .PHONY: $(OBJ)
-$(OBJ): | $(BUILD)
+$(OBJ): $(STOCKINC) | $(BUILD)
 	$(AS) --cpu 6502 -g $(DEFS) -I src -I . -l $(@:.o=.lst) -o $@ $(MAIN)
 
 $(BUILD)/neov8.bin: $(OBJ) v8.cfg

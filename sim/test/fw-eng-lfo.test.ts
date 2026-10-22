@@ -54,7 +54,7 @@ function pair(programs: Uint8Array[], mode: 'whole' | 'split' | 'layer', o: { st
 
 describe.skipIf(!hasStock)('engine parity: LFOs', () => {
   let S: Record<string, number>;
-  beforeAll(() => { buildFirmware(BUILD, ['STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); });
+  beforeAll(() => { buildFirmware(BUILD, ['STOCK_TABLES', 'STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); });
 
   /** keys: [ms, note, down]; the S&H LFSR is seeded identically 40 ms after the first key; returns the traces. */
   function run(st: MachineBackend, ne: MachineBackend, keys: [number, number, boolean][], n: number) {
