@@ -5,9 +5,12 @@ the same sockets at any time, and NeoV8 keeps the stock battery-RAM formats (pro
 footswitches) so both firmwares can be swapped freely.
 
 ## 1. Before touching anything
-1. Back up the memory over MIDI with the stock firmware: request every program and step with the legacy
-   SysEx (the simulator's Backup tab will do this through Web MIDI; until then any SysEx librarian works:
-   program request = `F0 03 46 nn F7`, step request = `F0 03 47 nn F7`, with MX on).
+1. Back up the memory over MIDI with the stock firmware: in the simulator (`npm run dev`, Chrome or Edge), open
+   **Backup / restore your Voyetra**, connect MIDI, pick the ports, **Back up**: it requests the 100 programs and
+   100 steps (`F0 03 06 nn F7` / `F0 03 07 nn F7`, MX on) and saves them as a `.syx` file (~15 s). **Restore from
+   .syx** writes them back (memory protect off) and reads everything back to check it (~45 s): the stock ROM
+   acknowledges loads even under memory protect, and needs a pause after each acknowledge (sim/src/backup.ts).
+   Any SysEx librarian works too.
 2. Write down the autotune state (run an AUTO TUNE once with the stock ROM so the battery tables are fresh).
 3. Note which sockets hold V8600040 ... V8600043 on the CPU card (U-CS4 ... U-CS7).
 
