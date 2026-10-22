@@ -18,7 +18,8 @@ import { ROOT, buildFirmware, loadNeoRomFrom, readCallLog, neoSymbols, protoBatt
 const FULL = !!process.env.NEOV8_UI_FULL;
 const BUILD = FULL ? 'build-uifull' : 'build-ui';
 const GAP = 30; // ms between button events (as the prototype runner)
-const POT_GAP = 80; // the core scans one pot per 2 ms tick: 15 pots = 31 ms, so give a pot move time to land
+const POT_GAP = 100; // the core scans one pot per 2 ms tick: 15 pots = 31 ms; with the arpeggiator running a move
+// can take ~80-90 ms to land (seed 7 at 80 ms passed or failed with a few cycles of code elsewhere)
 const ID_MIDI_DUMP = 0x2d; // ui weak stub of midi_dump_all (STUB_MIDI build)
 
 type Step = Record<string, any>;
