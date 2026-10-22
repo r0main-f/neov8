@@ -94,11 +94,35 @@ ui_init:
         sta ui_last
         lda ui_tn+1
         sta ui_last+1
+        ldx #5                      ; boot screen "nEO 0.8" (firmware version, decimal point on digit 4) for
+@bs:    lda ui_s_boot,x             ; 1.3 s; the first button or knob dismisses it (and acts normally)
+        sta ui_tx,x
+        dex
+        bpl @bs
+        lda #0
+        ldx #$10
+        jsr ui_flash_txdp
+        lda #1
+        sta ui_splash
         jsr ui_render
         jmp panel_flush
+ui_s_boot:  .byte "nEO ", '0' + FW_VERSION_MAJ, '0' + FW_VERSION_MIN
+.assert FW_VERSION_MIN < 10, error, "boot screen shows one digit of minor version"
+
+; the boot screen goes away at the first button or knob
+ui_unsplash:
+        lda ui_splash
+        beq @r
+        lda #0
+        sta ui_splash
+        sta ui_msg_on
+@r:     rts
 
 ; A = button code, X = raw 8279 byte (bit6 = 1 when A440 is up)
 ui_key:
+        pha
+        jsr ui_unsplash
+        pla
         sta ui_code
         sta ui_lastbtn
         ldy #0
@@ -146,6 +170,9 @@ ui_modekey_hi:  .byte >(ui_play_key-1), >(ui_edit_key-1), >(ui_menu_key-1), >(ui
 
 ; X = pot index 0-14, A = 0-127
 ui_pot:
+        pha
+        jsr ui_unsplash
+        pla
         sta ui_pv
         sta ui_lastpot
         stx ui_pi

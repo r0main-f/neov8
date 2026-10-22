@@ -32,7 +32,10 @@ type Mode =
 interface Entry { target: 'L' | 'R' | 'S' | 'menu'; digits: string; t0: number }
 interface Store { kind: 'prog' | 'step'; side: Side; dest: number; digits: string }
 interface Touch { mn: string; value: string; until: number }
-interface Msg { text: string; until: number; blink?: boolean }
+interface Msg { text: string; until: number; blink?: boolean; splash?: boolean }
+
+/** firmware version shown by the boot screen (firmware/src/api.inc FW_VERSION_MAJ/MIN) */
+export const FW_VERSION = '0.8';
 
 const TRIM_POTS: Record<string, keyof Trims> = { a: 'a', r: 'r', lfo: 'lfo', glide: 'glide', fc: 'fc', detune: 'detune', vol: 'vol' };
 
@@ -89,6 +92,8 @@ export class NeoV8Proto implements Backend {
   constructor() {
     this.loadProgram('L', 0);
     this.loadProgram('R', 1);
+    // boot screen: firmware version for 1.3 s; the first button or knob dismisses it (and acts normally)
+    this.msg = { text: `nEO ${FW_VERSION}`, until: MSG_MS, splash: true };
   }
 
   // =============================================================== Backend API
@@ -102,6 +107,7 @@ export class NeoV8Proto implements Backend {
   }
 
   button(id: ButtonId, down: boolean): void {
+    if (this.msg?.splash) this.msg = null;
     if (down) {
       if (this.held.has(id)) return;
       this.held.add(id);
@@ -115,6 +121,7 @@ export class NeoV8Proto implements Backend {
   }
 
   pot(id: PotId, value: number): void {
+    if (this.msg?.splash) this.msg = null;
     const v = Math.max(0, Math.min(POT_MAX, Math.round(value)));
     const prev = this.pots[id] ?? v;
     this.pots[id] = v;

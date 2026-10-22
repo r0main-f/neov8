@@ -75,6 +75,7 @@ ui_lt_side: .res 1
 ui_onw:     .res 1          ; ON value for the param being shown ($FF = default)
 ui_mark:    .res 1          ; pickup marker ' ', '~' (turn down) or '_' (turn up)
 ; ---- MIDI CC of program parameters (ui_ptx / ui_cc_in)
+ui_splash:  .res 1          ; boot screen showing (any button / knob dismisses it)
 ui_ccn:     .res 1          ; controller number being sent
 ui_ccl:     .res 1          ; scratch: scaling mask / LSB-controller flag
 ui_ccs:     .res 1          ; received: side
