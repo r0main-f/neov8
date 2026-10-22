@@ -3,6 +3,7 @@
 
 use crate::calib::*;
 use crate::filter::Ladder;
+use crate::modmatrix::{decode, Bank};
 use crate::osc::{Osc, Waves};
 use v8_machine::vco::{duty_at, period_at, OscParams};
 use v8_machine::{AnalogEvent, Ctl, CPU_HZ};
@@ -13,10 +14,13 @@ pub struct AnalogState {
     pub cv: [u16; 136],
     pub mult: [u8; 136],
     pub ctl: Ctl,
+    /// last byte written to each ANA I crosspoint address ($65xx): the routing decode needs the data, not only
+    /// D7 (crate::modmatrix)
+    pub xdata: [u8; 256],
 }
 
 impl Default for AnalogState {
-    fn default() -> Self { AnalogState { cv: [0; 136], mult: [0; 136], ctl: Ctl::default() } }
+    fn default() -> Self { AnalogState { cv: [0; 136], mult: [0; 136], ctl: Ctl::default(), xdata: [0; 256] } }
 }
 
 impl AnalogState {
@@ -26,7 +30,10 @@ impl AnalogState {
                 self.cv[slot as usize] = value;
                 self.mult[slot as usize] = mult;
             }
-            AnalogEvent::Latch { addr, data, slot, .. } => { self.ctl.apply(addr, data, slot); }
+            AnalogEvent::Latch { addr, data, slot, .. } => {
+                if addr >> 8 == 0x65 { self.xdata[(addr & 0xff) as usize] = data; }
+                self.ctl.apply(addr, data, slot);
+            }
         }
     }
     /// S&H level in 14-bit DAC units (DAC word × multiplier / 255), as the VCO model reads it
@@ -56,7 +63,13 @@ struct Params {
     fc_oct: f64,
     env1_target: f64,
     vca_target: f64,
-    k: f64,
+    /// initial Q, 0..1 of full scale
+    q: f64,
+    /// mod sources of this voice: ADSR1 / ADSR2 copies (volts, before the mDAC) and the velocity / keyboard CV
+    /// controller (0..1)
+    adsr1_v: f64,
+    adsr2_v: f64,
+    vel: f64,
 }
 
 #[derive(Clone, Default)]
@@ -70,6 +83,8 @@ struct Voice {
     pw1: f64,
     pw2: f64,
     fco: f64,
+    /// last output of each VCO (the poly mod sources, tapped before the level VCAs)
+    last_v1: f64,
     last_v2: f64,
     dc: f64,
     p: Params,
@@ -93,6 +108,17 @@ pub struct Engine {
     a_vol_dn: f64,
     /// master volume (panel MASTER VOLUME pot), 0..1
     pub master: f64,
+    /// analog controllers of the mod banks: joystick X (−1..1: +X right, −X left), key pressure, Fc pedal (0..1)
+    pub joystick_x: f64,
+    pub pressure: f64,
+    pub fc_pedal: f64,
+    /// decoded banks per side, their signed depth gain (invert, depth OTA, MOD_GAIN) and the mono sources per side
+    /// (DC, LFO1, LFO2, LFO1 square, volts)
+    banks: [[Bank; 4]; 2],
+    depth: [[f64; 4]; 2],
+    mono: [[f64; 4]; 2],
+    lf_noise: f64,
+    a_lf_noise: f64,
 }
 
 /// SSM2024 gain for a control voltage `v`: off below the threshold, 1 at `full` volts
@@ -123,6 +149,14 @@ impl Engine {
             a_vol_up: a(VOL_RISE_TAU),
             a_vol_dn: a(VOL_FALL_TAU),
             master: 1.0,
+            joystick_x: 0.0,
+            pressure: 0.0,
+            fc_pedal: 0.0,
+            banks: [[Bank::default(); 4]; 2],
+            depth: [[0.0; 4]; 2],
+            mono: [[0.0; 4]; 2],
+            lf_noise: 0.0,
+            a_lf_noise: 1.0 - (-2.0 * std::f64::consts::PI * LF_NOISE_HZ / sr).exp(),
         }
     }
 
@@ -155,11 +189,32 @@ impl Engine {
             p.g1 = vca_gain(st.frac(0x44 + sb) * VFS, VCO_LEVEL_FULL);
             p.g2 = vca_gain(st.frac(0x45 + sb) * VFS, VCO_LEVEL_FULL);
             p.gn = vca_gain(st.frac(0x52 + 4 * side) * VFS, VCO_LEVEL_FULL);
-            p.k = K_MAX * st.frac(0x46 + sb).powf(Q_CURVE);
+            p.q = st.frac(0x46 + sb);
             let fc7 = st.level(0x40 + sb + lv) / 128.0;
             p.fc_oct = (fc7 - FC_REF_STEP) / 12.0;
             p.env1_target = st.frac(0x70 + v) * VFS; // volts = octaves
             p.vca_target = vca_gain(st.frac(0x68 + v) * VFS, VFS);
+            // mod sources: the ADSR copies are taken before the mDAC (raw DAC word); controller = velocity slot
+            p.adsr1_v = st.cv[0x70 + v] as f64 / 16384.0 * VFS;
+            p.adsr2_v = st.cv[0x68 + v] as f64 / 16384.0 * VFS;
+            p.vel = st.frac(0x58 + v);
+        }
+        for side in 0..2 {
+            let o = 4 * side;
+            let volts = |x: f64| x / 16384.0 * VFS;
+            let sq = c.ic3 & (0x20 << side) != 0;
+            self.mono[side] = [
+                MOD_DC_V,
+                volts(st.level(0x79 + o) - st.level(0x78 + o)),
+                volts(st.level(0x7a + o) - LFO2_REF),
+                if sq { LFO1_SQ_V } else { 0.0 },
+            ];
+            self.banks[side] = decode(&st.xdata, &c.ls670, side);
+            for b in 0..4 {
+                let vd = st.frac(0x60 + o + b) * VFS;
+                let g = (vd - MOD_TH).max(0.0) / (VFS - MOD_TH) * MOD_GAIN;
+                self.depth[side][b] = if self.banks[side][b].invert { -g } else { g };
+            }
         }
         for side in 0..2 {
             self.vol_t[side] = vca_gain(st.frac(0x53 + 4 * side) * VFS, VFS) * 1.5;
@@ -201,29 +256,65 @@ impl Engine {
                 let a = if self.vol_t[side] > self.vol[side] { self.a_vol_up } else { self.a_vol_dn };
                 self.vol[side] += (self.vol_t[side] - self.vol[side]) * a;
             }
+            self.lf_noise += (noise / (0.5 * NOISE_VPP) - self.lf_noise) * self.a_lf_noise;
             let (a_env1, a_vca, a_dc, a_pw, a_fc) = (self.a_env1, self.a_vca, self.a_dc, self.a_pw, self.a_fc);
+            let (px, nx) = (self.joystick_x.max(0.0), (-self.joystick_x).max(0.0));
+            let mono_ctl = [self.pressure, self.fc_pedal, self.lf_noise.max(0.0)];
             let osc = &self.osc;
             for (v, vo) in self.voices.iter_mut().enumerate() {
                 let p = vo.p;
+                let side = v / 4;
+                // mod banks: source × controllers × depth, summed per destination (VCO1, VCO2, Fc octaves; Q volts)
+                let mut m = [0.0f64; 4];
+                for (b, bank) in self.banks[side].iter().enumerate() {
+                    let g = self.depth[side][b];
+                    if bank.dest == 0 || g == 0.0 { continue; }
+                    let s = match bank.src {
+                        0..=3 => self.mono[side][bank.src as usize],
+                        4 => vo.last_v1,
+                        5 => vo.last_v2,
+                        6 => p.adsr1_v,
+                        _ => p.adsr2_v,
+                    };
+                    let ctl = if bank.has_controller() {
+                        let mut c = 0.0;
+                        if bank.vel { c += p.vel; }
+                        if bank.plus_x { c += px; }
+                        if bank.minus_x { c += nx; }
+                        if bank.pressure { c += mono_ctl[0]; }
+                        if bank.repl {
+                            c += match b { 0 | 1 => p.adsr1_v / VFS, 2 => mono_ctl[2], _ => mono_ctl[1] };
+                        }
+                        c.clamp(0.0, 1.0)
+                    } else {
+                        1.0
+                    };
+                    let x = s * ctl * g;
+                    for (d, md) in m.iter_mut().enumerate() {
+                        if bank.dest & (1 << d) != 0 { *md += x; }
+                    }
+                }
                 vo.vca += (p.vca_target - vo.vca) * a_vca;
                 vo.env1 += (p.env1_target - vo.env1) * a_env1;
                 vo.pw1 += (p.pw1 - vo.pw1) * a_pw;
                 vo.pw2 += (p.pw2 - vo.pw2) * a_pw;
-                vo.fco += (p.fc_oct + vo.env1 - vo.fco) * a_fc;
+                vo.fco += (p.fc_oct + vo.env1 + m[2] - vo.fco) * a_fc;
+                let k = K_MAX * (p.q - Q_MOD_K * m[3] / VFS).clamp(0.0, 1.0).powf(Q_CURVE);
                 if vo.vca < 1e-6 && p.vca_target < 1e-6 {
                     vo.vca = 0.0;
                     continue; // silent voice: skip the audio work (oscillators keep no phase while silent)
                 }
                 let (duty1, duty2) = (duty_at(&osc[2 * v + 1], vo.pw1), duty_at(&osc[2 * v], vo.pw2));
-                let t2 = vo.o2.tick(p.f2 / fs, duty2, p.w2, None);
+                let t2 = vo.o2.tick(p.f2 * m[1].exp2() / fs, duty2, p.w2, None);
                 let fm = if p.lin_fm { 1.0 + LIN_FM_DEPTH * vo.last_v2 } else { 1.0 };
                 let reset = if p.sync { t2.wrapped } else { None }; // hard sync on VCO2's saw reset
-                let t1 = vo.o1.tick((p.f1 * fm).max(0.0) / fs, duty1, p.w1, reset);
+                let t1 = vo.o1.tick((p.f1 * m[0].exp2() * fm).max(0.0) / fs, duty1, p.w1, reset);
                 vo.last_v2 = t2.out;
+                vo.last_v1 = t1.out;
                 let into = p.g2 * t2.out + p.gn * noise + if p.bypass { 0.0 } else { p.g1 * t1.out };
                 let fc = (FC_REF * vo.fco.exp2()).clamp(FC_MIN, fc_max);
                 let g = (std::f64::consts::PI * fc / fs).tan();
-                let mut y = vo.vcf.tick(into / DRIVE_V, g, p.k) * DRIVE_V;
+                let mut y = vo.vcf.tick(into / DRIVE_V, g, k) * DRIVE_V;
                 if p.bypass {
                     y += p.g1 * t1.out * BYPASS_GAIN;
                 }
@@ -276,6 +367,53 @@ mod tests {
         e.render(&mut l, &mut r);
         let rms = |x: &[f32]| (x[2400..].iter().map(|s| (*s as f64).powi(2)).sum::<f64>() / 2400.0).sqrt();
         (rms(&l), rms(&r))
+    }
+
+    /// Frequency of voice 0's VCO1 saw with bank A of side 0 = DC → VCO1 at the given depth slot value (0..1).
+    fn vco1_freq_with_dc_mod(depth: f64, dest_q: bool) -> (f64, f64) {
+        let osc = vec![OscParams { tune: 94.0, scale: 1.0, pw50: 0x38 as f64 * 128.0, jitter: 0.0, fault: None }; 16];
+        let mut e = Engine::new(48_000.0, osc);
+        let st = &mut e.state;
+        st.mult = [255; 136];
+        st.cv[7] = 94 * 128; // the reference pitch, ≈ 886 Hz
+        st.cv[6] = 16300;
+        st.cv[2] = 16300;
+        st.cv[0x44] = 16383;
+        st.cv[0x40] = 120 * 128;
+        st.cv[0x68] = 16383;
+        st.cv[0x53] = 16383;
+        st.ctl.ic1 = !0x04;
+        // bank A, side 0: source DC (address 0, the default), not inverted; VCO1 (or Q) on, the rest off
+        for d in 0..4 {
+            let on = if dest_q { d == 3 } else { d == 0 };
+            st.xdata[0x30 + d * 4 + 2 + usize::from(!on)] = 0xff;
+        }
+        st.cv[0x60] = (depth * 16384.0) as u16;
+        let mut r = vec![0f32; 48_000];
+        let mut l = vec![0f32; 48_000];
+        e.render(&mut l, &mut r);
+        // rising zero crossings over the second half
+        let y = &r[24_000..];
+        let mean = y.iter().map(|&v| v as f64).sum::<f64>() / y.len() as f64;
+        let n = (1..y.len()).filter(|&i| (y[i - 1] as f64) < mean && (y[i] as f64) >= mean).count();
+        let rms = (y.iter().map(|&v| (v as f64 - mean).powi(2)).sum::<f64>() / y.len() as f64).sqrt();
+        (n as f64 * 2.0, rms)
+    }
+
+    #[test]
+    fn mod_bank_dc_to_vco1_follows_the_depth_law() {
+        let (f0, _) = vco1_freq_with_dc_mod(0.0, false);
+        // +1 octave: depth CV = threshold + 1/5 of the span (DC = 5 V, 1 V/oct)
+        let d = (MOD_TH + (VFS - MOD_TH) / MOD_DC_V) / VFS;
+        let (f1, _) = vco1_freq_with_dc_mod(d, false);
+        assert!((f1 / f0 - 2.0).abs() < 0.02, "{f0} -> {f1}");
+        // depth $18 is below the OTA threshold: no modulation (user manual p.64)
+        let (f18, _) = vco1_freq_with_dc_mod(24.0 / 256.0, false);
+        assert!((f18 / f0 - 1.0).abs() < 0.005, "{f0} -> {f18}");
+        // DC to Q (a positive source lowers the resonance; nothing to lower here, so the output stays the same)
+        let (_, r0) = vco1_freq_with_dc_mod(0.0, true);
+        let (_, r1) = vco1_freq_with_dc_mod(1.0, true);
+        assert!((r1 / r0 - 1.0).abs() < 0.05, "{r0} -> {r1}");
     }
 
     #[test]

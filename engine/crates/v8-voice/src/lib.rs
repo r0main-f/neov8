@@ -5,6 +5,7 @@
 pub mod calib;
 pub mod engine;
 pub mod filter;
+pub mod modmatrix;
 pub mod osc;
 
 pub use engine::{AnalogState, Engine, BLOCK};
