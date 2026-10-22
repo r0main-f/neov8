@@ -10,3 +10,4 @@ ui_service:
 ui_recall_prog: STUBCALL $20
 ui_recall_step: STUBCALL $21
 ui_sysex_in:    STUBCALL $22
+ui_cc_in:       STUBCALL $25     ; X side, A controller, Y value (program parameter CC)

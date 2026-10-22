@@ -432,8 +432,24 @@ ui_pget:
 @m:     and ui_p_mask,x
         rts
 
-; X = param, A = raw value -> ui_buf. X preserved.
+; X = param, A = raw value -> ui_buf (a panel edit): when the value changes it is also sent on the side's
+; channel (G_TX bit2): CC from ui_p_cc (8-bit: 14-bit pair), or NRPN with the raw byte for the switches. X preserved.
 ui_pset:
+        jsr ui_pset_q
+        beq @r                      ; unchanged: nothing sent (pot jitter, pickup not caught)
+        lda NV_GLOBALS+G_TX
+        and #$04
+        beq @r
+        txa
+        pha
+        jsr ui_ptx
+        pla
+        tax
+@r:     rts
+
+; X = param, A = raw value -> ui_buf, no MIDI (used for received CCs). X preserved.
+; Out: Z=1 when the byte did not change, else ui_a = new byte, Y = byte number.
+ui_pset_q:
         and ui_p_mask,x
         ldy ui_p_shift,x
         beq @n
@@ -446,8 +462,106 @@ ui_pset:
         eor #$ff
         and (ui_buf),y
         ora ui_a
-        sta (ui_buf),y
-        rts
+        sta ui_a
+        cmp (ui_buf),y
+        beq @r
+        sta (ui_buf),y              ; flags still from the CMP (Z=0)
+@r:     rts
+
+; send param X of ui_buf (side ui_bside): ui_a = its byte, Y = byte number
+ui_ptx:
+        lda ui_p_cc,x
+        bne @cc
+        tya                         ; switch: NRPN (MSB side, LSB byte number, raw byte value)
+        ldy ui_a
+        ldx ui_bside
+        jmp midi_nrpn_out
+@cc:    sta ui_ccn
+        jsr ui_pget                 ; A = field value
+        ldy ui_p_mask,x
+        bmi @w8
+        sty ui_ccl
+@up:    ldy ui_ccl                  ; scale to 0-127: value << (7 - width)
+        cpy #$7f
+        bcs @one
+        sec
+        rol ui_ccl
+        asl
+        bcc @up                     ; always (value < 128)
+@one:   tay
+        lda ui_ccn
+        ldx ui_bside
+        jmp midi_cc_out
+@w8:    pha                         ; 8-bit: MSB = value >> 1 on cc, LSB = (value & 1) << 6 on cc + 32
+        lsr
+        tay
+        lda ui_ccn
+        ldx ui_bside
+        jsr midi_cc_out
+        pla
+        lsr
+        lda #0
+        ror
+        lsr
+        tay
+        lda ui_ccn
+        ora #$20
+        jmp midi_cc_out
+
+; MIDI CC of a program parameter (G_RX bit2): X = side, A = controller, Y = value. Sets the edit buffer
+; without sending it back. An 8-bit param: its MSB writes value << 1, its LSB (cc + 32) sets bit 0.
+ui_cc_in:
+        stx ui_ccs
+        sty ui_ccv
+        ldy #0
+        cmp #32
+        bcc @f
+        cmp #64
+        bcs @f
+        and #$1f                    ; LSB controller -> its MSB
+        iny
+@f:     sty ui_ccl
+        ora #0
+        beq @r                      ; CC 0 / 32 (bank select): 0 marks the unmapped params
+        ldx #UI_NPARAMS-1
+@l:     cmp ui_p_cc,x
+        beq @hit
+        dex
+        bpl @l
+@r:     rts
+@hit:   lda ui_ccs
+        jsr ui_setbuf
+        ldy ui_ccl
+        lda ui_p_mask,x
+        bmi @w8
+        tya
+        bne @r                      ; LSB of a 7-bit param: none
+        lda ui_p_mask,x
+        sta ui_ccl
+@dn:    lda ui_ccl                  ; value >> (7 - width)
+        cmp #$7f
+        bcs @val
+        sec
+        rol ui_ccl
+        lsr ui_ccv
+        bpl @dn                     ; always
+@val:   lda ui_ccv
+@put:   jsr ui_pset_q
+        beq @r
+        ldx ui_ccs
+        jsr ui_apply_prog
+        jmp ui_set_redraw
+@w8:    tya
+        bne @lsb
+        lda ui_ccv
+        asl
+        bcc @put                    ; always
+@lsb:   jsr ui_pget
+        and #$fe
+        bit ui_ccv                  ; V = LSB bit 6
+        bvc @put
+        ora #1
+        bne @put                    ; always
 
 ; X = param -> A = raw value meaning ON (ui_onw if set, else 0 for active-low flags, 1 otherwise)
 ui_onval:
@@ -756,6 +870,9 @@ ui_edit_btn:
         sta ui_mode
         jsr ui_uncatch
         jsr ui_compare_off
+        lda #8                      ; Rev4: SysEx "new data available" F0 03 08 F7 when leaving EDIT (SysEx on)
+        ldx #$ff
+        jsr midi_sx_event
         ldx ui_eside
         jmp @chord
 @n4:    cmp #UI_TUNE

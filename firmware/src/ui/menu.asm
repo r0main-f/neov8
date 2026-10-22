@@ -38,6 +38,8 @@ ui_menu_tab:
         MITEM 20, "Lo", MK_BIT, NV_GLOBALS+G_LOCAL, 1, 0, 0
         MITEM 21, "tA", MK_NOTYET, 0, 0, 0, 0
         MITEM 22, "SP", MK_RANGE, PERF+PF_SPLIT, 36, 96, 0
+        MITEM 23, "rC", MK_BIT, NV_GLOBALS+G_RX, 4, 0, 0
+        MITEM 24, "tC", MK_BIT, NV_GLOBALS+G_TX, 4, 0, 0
         MITEM 30, "Pn", MK_CHOICE, NV_GLOBALS+G_POTMODE, 3, 6, 0
         MITEM 31, "tr", MK_CHOICE, NV_GLOBALS+G_TRIMMODE, 2, 9, 0
         MITEM 32, "dh", MK_RANGE, NV_GLOBALS+G_DISPHOLD, 5, 30, 0

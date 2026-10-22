@@ -107,6 +107,7 @@ EDIT leaves. Values marked *step* belong to the performance and are saved with S
 | 20 | Lo | local control | On/oF |
 | 21 | tA | user velocity taper (Rev4 page; not in prototype yet) | |
 | 22 | SP | split point (*step*) | note |
+| 23 / 24 | rC / tC | receive / transmit program parameters: CC, switches as NRPN (`docs/midi-implementation.md` §4) | On/oF |
 | 30 | Pn | pot mode | PU/JP/rL |
 | 31 | tr | Normal-page trimmers | tr (trim) / dI (direct) |
 | 32 | dh | display hold ×100 ms | 05–30 |

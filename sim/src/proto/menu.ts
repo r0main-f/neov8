@@ -57,6 +57,8 @@ export const MENU: MenuItem[] = [
   bool(20, 'Lo', 'Local control', 'localOn'),
   info(21, 'tA', 'User velocity taper (Rev4 page) - not in prototype yet', 'notYet'),
   range(22, 'SP', 'Split point (also: hold SPLIT + key)', 36, 96, (c) => c.perf.split, (c, v) => (c.perf.split = v), true, (n) => two(n % 100)),
+  bool(23, 'rC', 'Receive parameter CC / NRPN', 'rxCtrl'),
+  bool(24, 'tC', 'Transmit panel edits as CC (switches: NRPN)', 'txCtrl'),
   // 3x pots / UI
   choice(30, 'Pn', 'Pot mode', [['pickup', 'PU'], ['jump', 'JP'], ['relative', 'rL']], (c) => c.g.potMode, (c, v) => (c.g.potMode = v)),
   choice(31, 'tr', 'Normal-page trimmers', [['trim', 'tr'], ['direct', 'dI']], (c) => c.g.trimMode, (c, v) => (c.g.trimMode = v)),

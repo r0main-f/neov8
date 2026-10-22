@@ -1,7 +1,7 @@
 // NeoV8 navigation prototype: the UX of docs/ux-spec.md implemented directly in TypeScript.
 // It works on real 45-byte programs and is driven by the generated parameter/page tables.
 // The firmware (Phase 3) must pass the same spec/scenarios as this class.
-import { PAGES } from '../gen/params';
+import { PAGES, PARAMS } from '../gen/params';
 import { renderText, DP } from '../font7';
 import type { Backend, ButtonId, Frame, PageDef, PotId, ButtonBinding, PotBinding, VoiceView } from '../types';
 import { POT_MAX, BUTTONS } from '../types';
@@ -144,6 +144,12 @@ export class NeoV8Proto implements Backend {
         if ((t === 0x90 || t === 0x80) && i + 2 < bytes.length && this.globals.rxNotes) {
           const n = bytes[i + 1], v = bytes[i + 2];
           if (sideOf()) this.noteEvent(n, t === 0x90 && v > 0, v);
+          i += 2;
+        } else if (t === 0xb0 && i + 2 < bytes.length) {
+          if (this.globals.rxCtrl) {
+            if (this.globals.omniR || ch === this.globals.midiChR) this.ccIn('R', bytes[i + 1], bytes[i + 2]);
+            if (this.globals.omniL || ch === this.globals.midiChL) this.ccIn('L', bytes[i + 1], bytes[i + 2]);
+          }
           i += 2;
         } else if (t === 0xc0 && this.globals.rxProgram) {
           const side = sideOf();
@@ -384,6 +390,7 @@ export class NeoV8Proto implements Backend {
         this.lastPage[this.mode.side] = this.mode.page;
         this.mode = { kind: 'play' };
         this.compare = null;
+        if (this.globals.rxSysex) this.midiOut.push(0xf0, 0x03, 0x08, 0xf7); // Rev4 "new data available"
         return;
       case 'menu':
         this.mode = this.mode.back;
@@ -439,8 +446,8 @@ export class NeoV8Proto implements Backend {
       case 'rev': {
         const delta = id === 'fwd' ? 1 : -1;
         this.entry = null;
-        if (this.focus === 'S') this.recallStep((this.stepNum + delta + 100) % 100);
-        else this.loadProgram(this.focus, (this.progNum(this.focus) + delta + 100) % 100);
+        if (this.focus === 'S') this.recallTx('S', (this.stepNum + delta + 100) % 100);
+        else this.recallTx(this.focus, (this.progNum(this.focus) + delta + 100) % 100);
         return;
       }
       case 'store':
@@ -526,8 +533,57 @@ export class NeoV8Proto implements Backend {
     if (e.digits.length < 2) return;
     const n = Number(e.digits);
     this.entry = null;
-    if (e.target === 'S') this.recallStep(n);
-    else if (e.target === 'L' || e.target === 'R') this.loadProgram(e.target, n);
+    if (e.target === 'S' || e.target === 'L' || e.target === 'R') this.recallTx(e.target, n);
+  }
+
+  /** Panel recall + MIDI out: program change (per pcTarget; a step on the RIGHT channel), SysEx "new step". */
+  private recallTx(target: Side | 'S', n: number) {
+    const g = this.globals;
+    if (target === 'S') {
+      this.recallStep(n);
+      if (g.rxSysex) this.midiOut.push(0xf0, 0x03, 0x00, n, 0xf7);
+      if (g.txProgram && g.pcTarget === 'step') this.midiOut.push(0xc0 | (g.midiChR - 1), n);
+    } else {
+      this.loadProgram(target, n);
+      if (g.txProgram && g.pcTarget === 'prog') this.midiOut.push(0xc0 | ((target === 'L' ? g.midiChL : g.midiChR) - 1), n);
+    }
+  }
+
+  /** A panel edit: set the parameter and send it when its byte changed. */
+  private setParam(side: Side, pid: string, raw: number) {
+    const prog = this.edit[side];
+    const before = prog[PARAM[pid].byte];
+    setRaw(prog, pid, raw);
+    this.txParam(side, pid, before);
+  }
+
+  /** MIDI out of a changed parameter (txCtrl): its CC (8-bit: 14-bit pair), or NRPN with the raw byte (switches). */
+  private txParam(side: Side, pid: string, before: number) {
+    const p = PARAM[pid];
+    const prog = this.edit[side];
+    if (prog[p.byte] === before || !this.globals.txCtrl) return;
+    const st = 0xb0 | ((side === 'L' ? this.globals.midiChL : this.globals.midiChR) - 1);
+    if (p.cc === null) {
+      const b = prog[p.byte];
+      this.midiOut.push(st, 99, side === 'L' ? 1 : 0, st, 98, p.byte, st, 6, b >> 7, st, 38, b & 0x7f);
+      return;
+    }
+    const v = getRaw(prog, pid);
+    if (p.width === 8) this.midiOut.push(st, p.cc, v >> 1, st, p.cc + 32, (v & 1) << 6);
+    else this.midiOut.push(st, p.cc, v << (7 - p.width));
+  }
+
+  /** MIDI in: a program parameter CC (rxCtrl) on the side's channel; nothing is sent back. */
+  private ccIn(side: Side, cc: number, v: number) {
+    const lsb = cc >= 32 && cc < 64;
+    const n = lsb ? cc - 32 : cc;
+    const p = n ? PARAMS.find((q) => q.cc === n) : undefined;
+    if (!p) return;
+    const prog = this.edit[side];
+    if (p.width === 8) {
+      if (lsb) setRaw(prog, p.id, (getRaw(prog, p.id) & 0xfe) | (v >> 6));
+      else setRaw(prog, p.id, v << 1);
+    } else if (!lsb) setRaw(prog, p.id, v >> (7 - p.width));
   }
 
   // ---------------------------------------------------------- STORE / COMPARE / UNDO
@@ -727,7 +783,7 @@ export class NeoV8Proto implements Backend {
       const raw = kp.keys[String(d)];
       if (raw === undefined) return this.flash('--  --');
       const target = kp.var ? kp.targets[String(this.sel[kp.var])] : kp.targets['0'];
-      setRaw(prog, target, raw);
+      this.setParam(m.side, target, raw);
       this.touchParam(target, m.side);
       return;
     }
@@ -741,12 +797,14 @@ export class NeoV8Proto implements Backend {
       }
       if (b.field) {
         const raw = getRaw(prog, b.field.param);
-        setRaw(prog, b.field.param, raw ^ (1 << b.field.bit));
+        this.setParam(m.side, b.field.param, raw ^ (1 << b.field.bit));
         this.touchParam(b.field.param, m.side);
         return;
       }
       if (b.param) {
+        const before = prog[PARAM[b.param].byte];
         setOn(prog, b.param, !isOn(prog, b.param, b.onWhen), b.onWhen);
+        this.txParam(m.side, b.param, before);
         this.touchParam(b.param, m.side, b.onWhen);
         return;
       }
@@ -771,7 +829,7 @@ export class NeoV8Proto implements Backend {
     if (!t) return this.flash('--  --');
     const p = PARAM[t.param];
     const prog = this.edit[t.side];
-    setRaw(prog, t.param, Math.max(0, Math.min(maxOf(p), getRaw(prog, t.param) + delta)));
+    this.setParam(t.side, t.param, Math.max(0, Math.min(maxOf(p), getRaw(prog, t.param) + delta)));
     this.touchParam(t.param, t.side);
   }
 
@@ -844,32 +902,32 @@ export class NeoV8Proto implements Backend {
       const step = Math.trunc(this.potAcc[key]);
       if (step) {
         this.potAcc[key] -= step;
-        setRaw(prog, pid, Math.max(0, Math.min(max, cur + step)));
+        this.setParam(side, pid, Math.max(0, Math.min(max, cur + step)));
       }
       return this.touchParam(pid, side);
     }
     if (mode === 'coarse12') {
-      setRaw(prog, pid, Math.min(max, Math.round((v / POT_MAX) * 21) * 12 + (cur % 12)));
+      this.setParam(side, pid, Math.min(max, Math.round((v / POT_MAX) * 21) * 12 + (cur % 12)));
       return this.touchParam(pid, side);
     }
     if (mode === 'fine12') {
-      setRaw(prog, pid, Math.min(max, Math.floor(cur / 12) * 12 + Math.round((v / POT_MAX) * 11)));
+      this.setParam(side, pid, Math.min(max, Math.floor(cur / 12) * 12 + Math.round((v / POT_MAX) * 11)));
       return this.touchParam(pid, side);
     }
     const target = Math.round((v / POT_MAX) * max);
     const before = Math.round((prev / POT_MAX) * max);
     switch (this.globals.potMode) {
       case 'jump':
-        setRaw(prog, pid, target);
+        this.setParam(side, pid, target);
         return this.touchParam(pid, side);
       case 'relative':
-        setRaw(prog, pid, Math.max(0, Math.min(max, cur + (target - before))));
+        this.setParam(side, pid, Math.max(0, Math.min(max, cur + (target - before))));
         return this.touchParam(pid, side);
       case 'pickup': {
         const ck = `${key}:${side}`;
         if (!this.caught[ck] && ((before - cur) * (target - cur) <= 0 || Math.abs(target - cur) <= 1)) this.caught[ck] = true;
         if (this.caught[ck]) {
-          setRaw(prog, pid, target);
+          this.setParam(side, pid, target);
           return this.touchParam(pid, side);
         }
         // not caught yet: show the stored value and which way to turn

@@ -12,7 +12,7 @@ import { neoInspect, neoEditBuffer, neoPanelCheck } from '../src/machine/neov8-i
 import { demoBank, getRaw, nullProgram } from '../src/proto/patch';
 import { renderText, segToChar } from '../src/font7';
 import type { ButtonId, PotId } from '../src/types';
-import { ROOT, buildFirmware, loadNeoRomFrom, readCallLog, neoSymbols } from './helpers';
+import { ROOT, buildFirmware, loadNeoRomFrom, readCallLog, neoSymbols, protoBattery } from './helpers';
 
 // NEOV8_UI_FULL=1: run against the full ROM (real engine / MIDI / tune) instead of the logging stubs
 const FULL = !!process.env.NEOV8_UI_FULL;
@@ -28,31 +28,6 @@ const files = readdirSync(dir).filter((f) => f.endsWith('.yaml')).sort();
 
 /** Same glyph = same text: the 7-segment display cannot tell O from 0, etc. */
 const canon = (t: string) => renderText(t).map((s) => segToChar(s)).join('');
-
-/** Stock 24-byte step (docs/rev4-ram-map.md §4) for the prototype's defaultPerf, as firmware/src/ui/store.asm packs it. */
-function defaultStep(progR: number, progL: number): number[] {
-  const s = new Array(24).fill(0);
-  s[0] = 0x80 | 2; // WHOLE 8, arp mode R = up
-  s[1] = progR;
-  s[2] = progL;
-  s[3] = 1 << 6; // octave R normal
-  s[4] = (1 << 6) | (60 - 12); // octave L normal, split C4 (key index = note - 12)
-  s[5] = 64; // arp speed
-  s[20] = 2 ^ 0x30; // arp mode L = up (byte stored XOR $30)
-  return s;
-}
-
-/** Battery RAM image matching the prototype's power-on state (programs = demoBank, L 00 / R 01). */
-export function protoBattery(): Uint8Array {
-  const b = new Uint8Array(0x2000);
-  demoBank().forEach((p, n) => b.set(p, 40 * n));
-  b[0x0fff] = 0xaa;
-  for (let n = 0; n < 100; n++) b.set(defaultStep(n === 0 ? 1 : 0, 0), 0x1000 + 24 * n);
-  // footswitch records as the prototype's defaults (fsw [34, 35, 52, none], toggle on #2), stock magic
-  b.set([0x80, 34, 0xff, 0x80, 35, 0xff, 0x00, 52, 0xff, 0x80, 0xff, 0xff, 0x00, 0x12, 0xff, 0x00, 0x13, 0xff], 0x1a46);
-  b[0x1a58] = 0xa5;
-  return b;
-}
 
 let rom: Uint8Array;
 /** full ROM (real engine): scenarios tagged `requires: full-rom` (the polysequencer page needs eng/seq.asm) */
@@ -156,7 +131,9 @@ describe('NeoV8 ROM: UI internals', () => {
     const n0 = b.machine.ram[0x0fe8];
     press(b, 'step_enable'); press(b, 'k0'); press(b, 'k3'); // step recall: 2 programs + perf
     const log = readCallLog(b.machine.ram).slice(-(b.machine.ram[0x0fe8] - n0));
-    expect(log.map((c) => c.id)).toEqual([0x12, 0x1b]); // eng_apply_perf, then eng_recalled (programs were recalled)
+    // engine calls only: a panel step recall also sends MIDI (stub ids $30-$3F: SysEx "new step")
+    expect(log.filter((c) => c.id < 0x30 || c.id > 0x3f).map((c) => c.id)).toEqual([0x12, 0x1b]); // eng_apply_perf, then eng_recalled
+    expect(log.some((c) => c.id === 0x35)).toBe(true); // midi_sx_event
   });
 
   it('a stored step reads back with the stock 24-byte layout', () => {

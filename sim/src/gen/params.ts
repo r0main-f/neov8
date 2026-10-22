@@ -144,7 +144,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 5
  },
  {
   "id": "vel_attack",
@@ -157,7 +158,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo1_rate",
@@ -170,7 +172,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 76
  },
  {
   "id": "vel_attack_half",
@@ -183,7 +186,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "noise_vol",
@@ -196,7 +200,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 31
  },
  {
   "id": "reldec_kbd_trk",
@@ -209,7 +214,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "vco1_freq",
@@ -222,7 +228,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 20
  },
  {
   "id": "reldec_half_trk",
@@ -235,7 +242,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "vco2_freq",
@@ -248,7 +256,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 21
  },
  {
   "id": "vco1_kbd_trk",
@@ -261,7 +270,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": "Panel button is DISABLE KBD (inverse sense)",
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "vco1_init_pw",
@@ -274,7 +284,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 23
  },
  {
   "id": "vco1_vol",
@@ -287,7 +298,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 29
  },
  {
   "id": "vco2_vol",
@@ -300,7 +312,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 30
  },
  {
   "id": "vco1_pulse",
@@ -313,7 +326,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "vcf_q",
@@ -326,7 +340,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 71
  },
  {
   "id": "vco2_pulse",
@@ -339,7 +354,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "vcf_fc",
@@ -352,7 +368,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 74
  },
  {
   "id": "vcf_kbd_trk",
@@ -365,7 +382,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "adsr1_depth",
@@ -378,7 +396,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 102
  },
  {
   "id": "vco1_sub",
@@ -391,7 +410,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "adsr2_attack",
@@ -404,7 +424,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 73
  },
  {
   "id": "vco1_tri",
@@ -417,7 +438,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "adsr2_decay",
@@ -430,7 +452,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 75
  },
  {
   "id": "vco1_saw",
@@ -443,7 +466,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "adsr2_release",
@@ -456,7 +480,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 72
  },
  {
   "id": "vco_sync",
@@ -469,7 +494,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "adsr2_sustain",
@@ -482,7 +508,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 79
  },
  {
   "id": "vco2_sub",
@@ -495,7 +522,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "adsr1_attack",
@@ -508,7 +536,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 103
  },
  {
   "id": "vco2_tri",
@@ -521,7 +550,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "adsr1_decay",
@@ -534,7 +564,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 104
  },
  {
   "id": "vco2_saw",
@@ -547,7 +578,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "adsr1_release",
@@ -560,7 +592,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 106
  },
  {
   "id": "vco1_bypass",
@@ -573,7 +606,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "adsr1_sustain",
@@ -586,7 +620,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 105
  },
  {
   "id": "vca_vel",
@@ -599,7 +634,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo1_delay",
@@ -612,7 +648,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 78
  },
  {
   "id": "lfo1_wave",
@@ -625,7 +662,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "lfoWave",
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 109
  },
  {
   "id": "vcf_half_trk",
@@ -638,7 +676,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo2_wave",
@@ -651,7 +690,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "lfoWave",
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 111
  },
  {
   "id": "adsr1_mode",
@@ -664,7 +704,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "adsrMode",
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 107
  },
  {
   "id": "adsr2_mode",
@@ -677,7 +718,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "adsrMode",
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 108
  },
  {
   "id": "glide_mode",
@@ -690,7 +732,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": "Not a switch-style active-low flag in the doc: 0=glissando, 1=glide. Panel button GLISS is ON when bit=0.",
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo2_kb_trig",
@@ -703,7 +746,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo1_kb_trig",
@@ -716,7 +760,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "vel_taper_fact",
@@ -729,7 +774,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": "0=user 1=factory",
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "vco1_pwm_src",
@@ -742,7 +788,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "pwmSource",
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 27
  },
  {
   "id": "vco2_pwm_src",
@@ -755,7 +802,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "pwmSource",
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 28
  },
  {
   "id": "release_modify",
@@ -768,7 +816,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": "0=release gets decay, 1=release cutoff. Panel button RELEASE GETS DECAY is ON when bit=0.",
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "pwm1_kbd_trk",
@@ -781,7 +830,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "prog_vol",
@@ -794,7 +844,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 9
  },
  {
   "id": "pwm2_kbd_trk",
@@ -807,7 +858,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "vco1_detune",
@@ -820,7 +872,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 22
  },
  {
   "id": "linear_fm",
@@ -833,7 +886,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo2_rate",
@@ -846,7 +900,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 110
  },
  {
   "id": "mod_kbd_cv",
@@ -859,7 +914,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": "0=keyboard control voltage, 1=keyboard velocity. Panel KBD TRACK button is ON when bit=0.",
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo2_half_trk",
@@ -872,7 +928,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo1_half_trk",
@@ -885,7 +942,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo2_kbd_trk",
@@ -898,7 +956,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "lfo1_kbd_trk",
@@ -911,7 +970,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "mod_vel_inv",
@@ -924,7 +984,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "vco2_pwm_depth",
@@ -937,7 +998,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 26
  },
  {
   "id": "vco1_pwm_depth",
@@ -950,7 +1012,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 25
  },
  {
   "id": "vco2_init_pw",
@@ -963,7 +1026,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 24
  },
  {
   "id": "taper_select",
@@ -976,7 +1040,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "taperSelect",
   "conf": "scan",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": 112
  },
  {
   "id": "clip_vca",
@@ -989,7 +1054,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "scan",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "clip_mod",
@@ -1002,7 +1068,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "scan",
   "note": null,
-  "bank": null
+  "bank": null,
+  "cc": null
  },
  {
   "id": "modA_src",
@@ -1015,7 +1082,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "modSource",
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": 16
  },
  {
   "id": "modA_inv",
@@ -1028,7 +1096,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modA_c_vel",
@@ -1041,7 +1110,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modA_c_px",
@@ -1054,7 +1124,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modA_c_nx",
@@ -1067,7 +1138,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modA_c_press",
@@ -1080,7 +1152,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modA_d_q",
@@ -1093,7 +1166,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modA_d_fc",
@@ -1106,7 +1180,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modA_d_vco2",
@@ -1119,7 +1194,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modA_d_vco1",
@@ -1132,7 +1208,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modA_depth",
@@ -1145,7 +1222,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": 12
  },
  {
   "id": "modA_replace",
@@ -1158,7 +1236,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "A"
+  "bank": "A",
+  "cc": null
  },
  {
   "id": "modB_src",
@@ -1171,7 +1250,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "modSource",
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": 17
  },
  {
   "id": "modB_inv",
@@ -1184,7 +1264,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modB_c_vel",
@@ -1197,7 +1278,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modB_c_px",
@@ -1210,7 +1292,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modB_c_nx",
@@ -1223,7 +1306,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modB_c_press",
@@ -1236,7 +1320,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modB_d_q",
@@ -1249,7 +1334,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modB_d_fc",
@@ -1262,7 +1348,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modB_d_vco2",
@@ -1275,7 +1362,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modB_d_vco1",
@@ -1288,7 +1376,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modB_depth",
@@ -1301,7 +1390,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": 13
  },
  {
   "id": "modB_replace",
@@ -1314,7 +1404,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "B"
+  "bank": "B",
+  "cc": null
  },
  {
   "id": "modC_src",
@@ -1327,7 +1418,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "modSource",
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": 18
  },
  {
   "id": "modC_inv",
@@ -1340,7 +1432,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modC_c_vel",
@@ -1353,7 +1446,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modC_c_px",
@@ -1366,7 +1460,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modC_c_nx",
@@ -1379,7 +1474,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modC_c_press",
@@ -1392,7 +1488,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modC_d_q",
@@ -1405,7 +1502,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modC_d_fc",
@@ -1418,7 +1516,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modC_d_vco2",
@@ -1431,7 +1530,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modC_d_vco1",
@@ -1444,7 +1544,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modC_depth",
@@ -1457,7 +1558,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": 14
  },
  {
   "id": "modC_replace",
@@ -1470,7 +1572,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "C"
+  "bank": "C",
+  "cc": null
  },
  {
   "id": "modD_src",
@@ -1483,7 +1586,8 @@ export const PARAMS: ParamDef[] = [
   "enum": "modSource",
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": 19
  },
  {
   "id": "modD_inv",
@@ -1496,7 +1600,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  },
  {
   "id": "modD_c_vel",
@@ -1509,7 +1614,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  },
  {
   "id": "modD_c_px",
@@ -1522,7 +1628,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  },
  {
   "id": "modD_c_nx",
@@ -1535,7 +1642,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  },
  {
   "id": "modD_c_press",
@@ -1548,7 +1656,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  },
  {
   "id": "modD_d_q",
@@ -1561,7 +1670,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  },
  {
   "id": "modD_d_fc",
@@ -1574,7 +1684,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  },
  {
   "id": "modD_d_vco2",
@@ -1587,7 +1698,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  },
  {
   "id": "modD_d_vco1",
@@ -1600,7 +1712,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  },
  {
   "id": "modD_depth",
@@ -1613,7 +1726,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": 15
  },
  {
   "id": "modD_replace",
@@ -1626,7 +1740,8 @@ export const PARAMS: ParamDef[] = [
   "enum": null,
   "conf": "doc",
   "note": null,
-  "bank": "D"
+  "bank": "D",
+  "cc": null
  }
 ];
 export const PAGES: PageDef[] = [

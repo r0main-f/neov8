@@ -5,7 +5,8 @@ Settings come from the NeoV8 globals in battery RAM (`NV_GLOBALS`, `src/api.inc`
 receive filters `G_RX`, transmit filters `G_TX`, program-change target `G_PC_TARGET`.
 
 Side numbering: 0 = RIGHT, 1 = LEFT (as the stock ROM). `G_RX` bits: 0 notes, 1 program change,
-2 CC/NRPN parameters, 3 SysEx (the Rev4 "MX" switch), 4 bend/mod/pressure/damper.
+2 CC/NRPN parameters, 3 SysEx (the Rev4 "MX" switch), 4 bend/mod/pressure/damper. `G_TX` bits: 0 notes,
+1 program change, 2 panel edits (CC / NRPN). Menu: 14–18, 23 (`rC`), 24 (`tC`).
 
 ## 1. Implementation chart
 
@@ -23,12 +24,12 @@ Side numbering: 0 = RIGHT, 1 = LEFT (as the stock ROM). `G_RX` bits: 0 notes, 1 
 | CC 2 breath | × | ○ | → CV 0 (−X) |
 | CC 4 foot | × | ○ | → CV 2 (Fc pedal) |
 | CC 64 damper | × | ○ | → `eng_ctrl` 8 (R) / 9 (L), see §3 |
-| CC 6/38/98/99/100/101 | ○ (`midi_nrpn_out`) | ○ | NRPN program-byte access, §4 |
+| CC of program parameters | ○ panel edits | ○ | 41 parameters, map in `docs/parameters.md`, §4 |
+| CC 6/38/98/99/100/101 | ○ panel switches | ○ | NRPN program-byte access, §4 |
 | CC 121 reset controllers | × | ○ | bend centre, damper up, CV 0–3 = 0 |
 | CC 120, 123–127 | × | ○ | → `eng_all_off` (whatever the receive filters) |
 | CC 122 local control | × | × | TODO (Local belongs to UI/engine) |
-| Other CC | `midi_cc_out` | × | TODO: per-parameter CC map (generated from the parameter table) |
-| Program change | ○ 0–99 | ○ 0–99 | per side → `ui_recall_prog`, or step → `ui_recall_step` (`G_PC_TARGET` = 1); 100–127 ignored |
+| Program change | ○ 0–99 | ○ 0–99 | per side → `ui_recall_prog`, or step → `ui_recall_step` (`G_PC_TARGET` = 1); 100–127 ignored. Sent on a panel recall (keypad, FWD/REV, footswitch) of what `G_PC_TARGET` selects: a program on its side's channel, a step on the RIGHT channel. Received recalls are not sent back. |
 | SysEx | ○ | ○ | §5 |
 | Song position / select | × | × | ignored |
 | Tune request $F6 | × | ○ | runs the autotune (stock behaviour), only with SysEx on |
@@ -80,22 +81,48 @@ The stock wrote CVs 4–7 through the pitch-bend sensitivity multiplier (`$5A79`
 scale; the bend CV is centred at value $40. The stock mapped the damper to RELEASE DEFEAT (pedal up =
 release defeated). Indices 8/9 are left to the engine (lead) to implement as it chooses.
 
-## 4. NRPN (receive: `G_RX` bit2; transmit: `midi_nrpn_out`, `G_TX` bit2)
+## 4. Program parameters: CC and NRPN (receive: `G_RX` bit2; transmit: `G_TX` bit2)
 
-Raw access to the 40 stored program bytes of the edit buffers, for editors/librarians:
+Every panel edit that changes a program byte (pots, buttons, keypad, nudge, Direct trimmers) is sent on the
+channel of the side being edited (`ui_pset` → `ui_ptx`). A pot that does not change the value (jitter, pickup
+not caught) sends nothing. Init program, recall, compare, undo and received data are not sent.
+
+**CC: the 41 multi-bit parameters** (values, waveforms, modes). The map is in `spec/params.yaml` (`cc`), listed
+in `docs/parameters.md`, and compiled into `ui_p_cc`:
+
+| Section | CC |
+|---|---|
+| Glide time, program volume | 5, 9 |
+| Mod bank A–D depth (8-bit: 14-bit pair) | 12–15, LSB 44–47 |
+| Mod bank A–D source | 16–19 |
+| VCO1/2 frequency, detune, initial PW 1/2, PWM depth 1/2, PWM source 1/2, VCO1/2 volume, noise | 20–31 |
+| VCF Q, ADSR2 release, ADSR2 attack, VCF Fc, ADSR2 decay, LFO1 rate, LFO1 delay, ADSR2 sustain | 71, 72, 73, 74, 75, 76, 78, 79 |
+| ADSR1 depth, attack, decay, sustain, release, ADSR1 mode, ADSR2 mode | 102–108 |
+| LFO1 wave, LFO2 rate, LFO2 wave, velocity taper select | 109–112 |
+
+- Values are scaled to 0–127 by shifting: CC value = raw << (7 − width) (e.g. a 4-bit depth 15 → 120, a 2-bit
+  enum 2 → 64); received: raw = value >> (7 − width).
+- 8-bit mod depths: MSB = raw >> 1 on CC 12–15, LSB = (raw & 1) << 6 on CC 44–47 (sent MSB first). Received MSB
+  writes raw = value << 1 (bit 0 cleared), the LSB then sets bit 0 = LSB bit 6.
+- The map leaves out the performance controllers received as CVs (1, 2, 4, 64), data entry / (N)RPN, bank
+  select, 7 volume, 8 balance, 10 pan, 11 expression, 65–69, 84 and 120–127. The generator checks it.
+- Received CCs go to `ui_cc_in (X side, A cc, Y value)` for each side the channel addresses (both when the
+  sides share a channel), set the edit buffer without sending anything back, and the UI applies it once per
+  main-loop pass. CC 32–63 that are not one of the 4 depth LSBs, and unmapped CCs, are ignored.
+
+**NRPN: the 74 on/off switches** (no free CC numbers left for them), and raw access to the 40 stored program
+bytes of the edit buffers for editors/librarians:
 
 | NRPN MSB (CC 99) | NRPN LSB (CC 98) | Data entry |
 |---|---|---|
 | 0 = RIGHT edit buffer (`EDIT_R`) | program byte 0–39 | value = MSB × 128 + LSB (CC 6, CC 38), clipped to 255 |
 | 1 = LEFT edit buffer (`EDIT_L`) | | |
 
-CC 6 writes the byte with LSB = 0, CC 38 writes MSB × 128 + LSB: send CC 6 then CC 38 (8-bit bytes need
-both, e.g. $AF = MSB 1, LSB $2F). Each write calls `eng_apply_prog (X side)`. Byte numbers ≥ 40 and
-MSB ≥ 2 are ignored; selecting an RPN (CC 101/100) deselects the NRPN. Data increment/decrement
-(CC 96/97) are not implemented.
-
-TODO (lead, parameter table generator): a CC map per program parameter (7-bit values), and NRPN numbers
-per parameter on top of this raw scheme.
+A switch edit sends the whole byte that holds it: `CC 99 side, CC 98 byte, CC 6 byte >> 7, CC 38 byte & $7F`
+(no running status, the NRPN is selected again every time). On receive, CC 6 writes the byte with LSB = 0, CC 38
+writes MSB × 128 + LSB: send CC 6 then CC 38 (8-bit bytes need both, e.g. $AF = MSB 1, LSB $2F). Each write calls
+`eng_apply_prog (X side)`. Byte numbers ≥ 40 and MSB ≥ 2 are ignored; selecting an RPN (CC 101/100) deselects
+the NRPN. Data increment/decrement (CC 96/97) are not implemented.
 
 ## 5. System exclusive
 
@@ -133,8 +160,8 @@ malformed one; `midi_sxcount` counts stored blocks (the receive page shows it).
 | 4, 8 | | ignored |
 | 22 ($16) | `F0 03 56 <114 nibbles> F7` (undocumented stock) (flag) | 57 bytes → `$5A20–$5A58` (velocity clips, user taper, unreferenced 15 B, footswitches, magic `$A5`), **first byte received goes to `$5A58`** (stock order). The stock accepted it without the flag; NeoV8 requires it. |
 
-Transmitted by NeoV8 (helpers for the UI): `midi_sx_event (A cmd, X data or $FF)` sends
-`F0 03 cmd [data] F7` when SysEx is on — cmd 0 "new step" (X = step) and cmd 8 "new data available".
+Transmitted by NeoV8 (as the Rev4), when SysEx is on (`midi_sx_event (A cmd, X data or $FF)`): cmd 0 "new step"
+`F0 03 00 ss F7` on a panel step recall, cmd 8 "new data available" `F0 03 08 F7` when leaving EDIT.
 
 ### 5.2 NeoV8 extensions (ID $03, commands $20–$3F; the stock ignores commands ≥ $10 except 22)
 

@@ -59,6 +59,8 @@ export interface ParamDef {
   byte: number; shift: number; width: number;
   activeLow: boolean; enum: string | null;
   conf: string; note: string | null; bank: string | null;
+  /** MIDI CC (multi-bit params; an 8-bit param also uses cc + 32 for the LSB). null = switch, sent as NRPN. */
+  cc: number | null;
 }
 export interface ButtonBinding {
   param?: string; onWhen?: number;

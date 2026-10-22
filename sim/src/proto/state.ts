@@ -41,6 +41,8 @@ export type PotMode = 'pickup' | 'jump' | 'relative';
 export interface Globals {
   midiChL: number; midiChR: number; omniL: boolean; omniR: boolean;
   rxNotes: boolean; rxProgram: boolean; rxSysex: boolean; txNotes: boolean; txProgram: boolean;
+  /** program parameters over MIDI: CC (switches as NRPN), receive / transmit (G_RX / G_TX bit2) */
+  rxCtrl: boolean; txCtrl: boolean;
   pcTarget: 'prog' | 'step';
   localOn: boolean;
   potMode: PotMode;
@@ -58,7 +60,7 @@ export interface Globals {
 export function defaultGlobals(): Globals {
   return {
     midiChL: 2, midiChR: 1, omniL: false, omniR: false,
-    rxNotes: true, rxProgram: true, rxSysex: true, txNotes: true, txProgram: true,
+    rxNotes: true, rxProgram: true, rxSysex: true, txNotes: true, txProgram: true, rxCtrl: true, txCtrl: true,
     pcTarget: 'prog', localOn: true,
     potMode: 'pickup', trimMode: 'trim', displayHoldMs: 1500, powerOnStep: 'last',
     fsw: [34, 35, 52, 99], fswToggle: [false, false, true, false],

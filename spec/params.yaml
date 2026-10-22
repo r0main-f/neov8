@@ -2,6 +2,8 @@
 # Source: "Voyetra-8 Program Format" (Octave_Plateau_V8_sysex.pdf p.5-7).
 # All single-bit parameters are stored ACTIVE LOW (doc note 1): bit=0 means ON.
 # `mn` is a 2-character mnemonic that must be renderable on a 7-segment digit pair.
+# `cc`: MIDI control change of the parameter (docs/midi-implementation.md §4). Only multi-bit parameters have one;
+#   the on/off switches go out as NRPN (raw program byte). Values are scaled to 0-127 by shifting (raw << (7 - width)).
 # `conf`: doc = from the SysEx document; scan = scan partly cut off / uncertain; tbd = to verify against the stock ROM.
 #
 # Generated from this file (npm run gen): sim/src/gen/params.ts, docs/parameters.md
@@ -16,76 +18,77 @@ enums:
   taperSelect: [{v: 0, t: F3, name: Factory 3}, {v: 1, t: F2, name: Factory 2}, {v: 2, t: F1, name: Factory 1}, {v: 3, t: US, name: User}]
 
 # Mod banks A-D are expanded by the generator into modA_*, modB_*, ...
+# srcCc / depthCc: MIDI CC of the bank source and depth (depth = 14-bit pair: MSB on depthCc, LSB on depthCc+32).
 modBanks:
-  - {bank: A, srcByte: 0x00, destByte: 0x04, destShift: 4, depthByte: 0x06, replaceBit: 7, replaceName: ADSR1}
-  - {bank: B, srcByte: 0x01, destByte: 0x04, destShift: 0, depthByte: 0x07, replaceBit: 6, replaceName: ADSR1}
-  - {bank: C, srcByte: 0x02, destByte: 0x05, destShift: 4, depthByte: 0x08, replaceBit: 5, replaceName: Noise}
-  - {bank: D, srcByte: 0x03, destByte: 0x05, destShift: 0, depthByte: 0x09, replaceBit: 4, replaceName: Pedal}
+  - {bank: A, srcByte: 0x00, destByte: 0x04, destShift: 4, depthByte: 0x06, replaceBit: 7, replaceName: ADSR1, srcCc: 16, depthCc: 12}
+  - {bank: B, srcByte: 0x01, destByte: 0x04, destShift: 0, depthByte: 0x07, replaceBit: 6, replaceName: ADSR1, srcCc: 17, depthCc: 13}
+  - {bank: C, srcByte: 0x02, destByte: 0x05, destShift: 4, depthByte: 0x08, replaceBit: 5, replaceName: Noise, srcCc: 18, depthCc: 14}
+  - {bank: D, srcByte: 0x03, destByte: 0x05, destShift: 0, depthByte: 0x09, replaceBit: 4, replaceName: Pedal, srcCc: 19, depthCc: 15}
 
 params:
   # ---- byte 0A-0E: 7-bit values with a flag in bit 7
-  - {id: glide_time,      name: Glide time,             mn: GL, byte: 0x0A, shift: 0, width: 7, conf: doc}
+  - {id: glide_time,      name: Glide time,             mn: GL, byte: 0x0A, shift: 0, width: 7, cc: 5, conf: doc}
   - {id: vel_attack,      name: Velocity -> attack,     mn: UA, byte: 0x0A, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: lfo1_rate,       name: LFO1 rate,              mn: L1, byte: 0x0B, shift: 0, width: 7, conf: doc}
+  - {id: lfo1_rate,       name: LFO1 rate,              mn: L1, byte: 0x0B, shift: 0, width: 7, cc: 76, conf: doc}
   - {id: vel_attack_half, name: Velocity attack 1/2,    mn: AH, byte: 0x0B, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: noise_vol,       name: Noise volume,           mn: no, byte: 0x0C, shift: 0, width: 7, conf: doc}
+  - {id: noise_vol,       name: Noise volume,           mn: no, byte: 0x0C, shift: 0, width: 7, cc: 31, conf: doc}
   - {id: reldec_kbd_trk,  name: Rel/Dec kbd tracking,   mn: dK, byte: 0x0C, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: vco1_freq,       name: VCO1 frequency,         mn: F1, byte: 0x0D, shift: 0, width: 7, conf: doc}
+  - {id: vco1_freq,       name: VCO1 frequency,         mn: F1, byte: 0x0D, shift: 0, width: 7, cc: 20, conf: doc}
   - {id: reldec_half_trk, name: Rel/Dec 1/2 tracking,   mn: dH, byte: 0x0D, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: vco2_freq,       name: VCO2 frequency,         mn: F2, byte: 0x0E, shift: 0, width: 7, conf: doc}
+  - {id: vco2_freq,       name: VCO2 frequency,         mn: F2, byte: 0x0E, shift: 0, width: 7, cc: 21, conf: doc}
   - {id: vco1_kbd_trk,    name: VCO1 kbd tracking,      mn: 1K, byte: 0x0E, shift: 7, width: 1, activeLow: true, conf: doc,
      note: "Panel button is DISABLE KBD (inverse sense)"}
   # ---- 0F-14
-  - {id: vco1_init_pw,    name: VCO1 initial PW,        mn: P1, byte: 0x0F, shift: 0, width: 7, conf: doc}
-  - {id: vco1_vol,        name: VCO1 volume,            mn: U1, byte: 0x10, shift: 0, width: 7, conf: doc}
-  - {id: vco2_vol,        name: VCO2 volume,            mn: U2, byte: 0x11, shift: 0, width: 7, conf: doc}
+  - {id: vco1_init_pw,    name: VCO1 initial PW,        mn: P1, byte: 0x0F, shift: 0, width: 7, cc: 23, conf: doc}
+  - {id: vco1_vol,        name: VCO1 volume,            mn: U1, byte: 0x10, shift: 0, width: 7, cc: 29, conf: doc}
+  - {id: vco2_vol,        name: VCO2 volume,            mn: U2, byte: 0x11, shift: 0, width: 7, cc: 30, conf: doc}
   - {id: vco1_pulse,      name: VCO1 pulse,             mn: 1P, byte: 0x11, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: vcf_q,           name: VCF Q (resonance),      mn: q, byte: 0x12, shift: 0, width: 7, conf: doc}
+  - {id: vcf_q,           name: VCF Q (resonance),      mn: q, byte: 0x12, shift: 0, width: 7, cc: 71, conf: doc}
   - {id: vco2_pulse,      name: VCO2 pulse,             mn: 2P, byte: 0x12, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: vcf_fc,          name: VCF cutoff,             mn: Fc, byte: 0x13, shift: 0, width: 7, conf: doc}
+  - {id: vcf_fc,          name: VCF cutoff,             mn: Fc, byte: 0x13, shift: 0, width: 7, cc: 74, conf: doc}
   - {id: vcf_kbd_trk,     name: VCF kbd tracking,       mn: FK, byte: 0x13, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: adsr1_depth,     name: VCF ADSR1 depth,        mn: Ed, byte: 0x14, shift: 0, width: 7, conf: doc}
+  - {id: adsr1_depth,     name: VCF ADSR1 depth,        mn: Ed, byte: 0x14, shift: 0, width: 7, cc: 102, conf: doc}
   - {id: vco1_sub,        name: VCO1 sub octave,        mn: 1o, byte: 0x14, shift: 7, width: 1, activeLow: true, conf: doc}
   # ---- 15-1C envelopes + waveform switches
-  - {id: adsr2_attack,    name: ADSR2 attack,           mn: A2, byte: 0x15, shift: 0, width: 7, conf: doc}
+  - {id: adsr2_attack,    name: ADSR2 attack,           mn: A2, byte: 0x15, shift: 0, width: 7, cc: 73, conf: doc}
   - {id: vco1_tri,        name: VCO1 triangle,          mn: 1t, byte: 0x15, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: adsr2_decay,     name: ADSR2 decay,            mn: d2, byte: 0x16, shift: 0, width: 7, conf: doc}
+  - {id: adsr2_decay,     name: ADSR2 decay,            mn: d2, byte: 0x16, shift: 0, width: 7, cc: 75, conf: doc}
   - {id: vco1_saw,        name: VCO1 sawtooth,          mn: 1A, byte: 0x16, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: adsr2_release,   name: ADSR2 release,          mn: r2, byte: 0x17, shift: 0, width: 7, conf: doc}
+  - {id: adsr2_release,   name: ADSR2 release,          mn: r2, byte: 0x17, shift: 0, width: 7, cc: 72, conf: doc}
   - {id: vco_sync,        name: VCO sync,               mn: SY, byte: 0x17, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: adsr2_sustain,   name: ADSR2 sustain,          mn: S2, byte: 0x18, shift: 0, width: 7, conf: doc}
+  - {id: adsr2_sustain,   name: ADSR2 sustain,          mn: S2, byte: 0x18, shift: 0, width: 7, cc: 79, conf: doc}
   - {id: vco2_sub,        name: VCO2 sub octave,        mn: 2o, byte: 0x18, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: adsr1_attack,    name: ADSR1 attack,           mn: A1, byte: 0x19, shift: 0, width: 7, conf: doc}
+  - {id: adsr1_attack,    name: ADSR1 attack,           mn: A1, byte: 0x19, shift: 0, width: 7, cc: 103, conf: doc}
   - {id: vco2_tri,        name: VCO2 triangle,          mn: 2t, byte: 0x19, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: adsr1_decay,     name: ADSR1 decay,            mn: d1, byte: 0x1A, shift: 0, width: 7, conf: doc}
+  - {id: adsr1_decay,     name: ADSR1 decay,            mn: d1, byte: 0x1A, shift: 0, width: 7, cc: 104, conf: doc}
   - {id: vco2_saw,        name: VCO2 sawtooth,          mn: 2A, byte: 0x1A, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: adsr1_release,   name: ADSR1 release,          mn: r1, byte: 0x1B, shift: 0, width: 7, conf: doc}
+  - {id: adsr1_release,   name: ADSR1 release,          mn: r1, byte: 0x1B, shift: 0, width: 7, cc: 106, conf: doc}
   - {id: vco1_bypass,     name: VCO1 bypass VCF,        mn: bY, byte: 0x1B, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: adsr1_sustain,   name: ADSR1 sustain,          mn: S1, byte: 0x1C, shift: 0, width: 7, conf: doc}
+  - {id: adsr1_sustain,   name: ADSR1 sustain,          mn: S1, byte: 0x1C, shift: 0, width: 7, cc: 105, conf: doc}
   - {id: vca_vel,         name: VCA velocity,           mn: UU, byte: 0x1C, shift: 7, width: 1, activeLow: true, conf: doc}
   # ---- 1D-1F
-  - {id: lfo1_delay,      name: LFO1 delay,             mn: dL, byte: 0x1D, shift: 0, width: 4, conf: doc}
-  - {id: lfo1_wave,       name: LFO1 waveform,          mn: 1u, byte: 0x1D, shift: 5, width: 2, enum: lfoWave, conf: doc}
+  - {id: lfo1_delay,      name: LFO1 delay,             mn: dL, byte: 0x1D, shift: 0, width: 4, cc: 78, conf: doc}
+  - {id: lfo1_wave,       name: LFO1 waveform,          mn: 1u, byte: 0x1D, shift: 5, width: 2, enum: lfoWave, cc: 109, conf: doc}
   - {id: vcf_half_trk,    name: VCF 1/2 kbd tracking,   mn: FH, byte: 0x1D, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: lfo2_wave,       name: LFO2 waveform,          mn: 2u, byte: 0x1E, shift: 2, width: 2, enum: lfoWave, conf: doc}
-  - {id: adsr1_mode,      name: ADSR1 mode,             mn: n1, byte: 0x1F, shift: 0, width: 2, enum: adsrMode, conf: doc}
-  - {id: adsr2_mode,      name: ADSR2 mode,             mn: n2, byte: 0x1F, shift: 2, width: 2, enum: adsrMode, conf: doc}
+  - {id: lfo2_wave,       name: LFO2 waveform,          mn: 2u, byte: 0x1E, shift: 2, width: 2, enum: lfoWave, cc: 111, conf: doc}
+  - {id: adsr1_mode,      name: ADSR1 mode,             mn: n1, byte: 0x1F, shift: 0, width: 2, enum: adsrMode, cc: 107, conf: doc}
+  - {id: adsr2_mode,      name: ADSR2 mode,             mn: n2, byte: 0x1F, shift: 2, width: 2, enum: adsrMode, cc: 108, conf: doc}
   - {id: glide_mode,      name: Glide (1) / Gliss (0),  mn: GS, byte: 0x1F, shift: 4, width: 1, conf: doc,
      note: "Not a switch-style active-low flag in the doc: 0=glissando, 1=glide. Panel button GLISS is ON when bit=0."}
   - {id: lfo2_kb_trig,    name: LFO2 key retrigger,     mn: t2, byte: 0x1F, shift: 5, width: 1, activeLow: true, conf: doc}
   - {id: lfo1_kb_trig,    name: LFO1 key retrigger,     mn: t1, byte: 0x1F, shift: 6, width: 1, activeLow: true, conf: doc}
   - {id: vel_taper_fact,  name: Velocity taper user/factory, mn: UF, byte: 0x1F, shift: 7, width: 1, conf: doc, note: "0=user 1=factory"}
   # ---- 20-27
-  - {id: vco1_pwm_src,    name: VCO1 PWM source,        mn: 1S, byte: 0x20, shift: 0, width: 2, enum: pwmSource, conf: doc}
-  - {id: vco2_pwm_src,    name: VCO2 PWM source,        mn: 2S, byte: 0x20, shift: 3, width: 2, enum: pwmSource, conf: doc}
+  - {id: vco1_pwm_src,    name: VCO1 PWM source,        mn: 1S, byte: 0x20, shift: 0, width: 2, enum: pwmSource, cc: 27, conf: doc}
+  - {id: vco2_pwm_src,    name: VCO2 PWM source,        mn: 2S, byte: 0x20, shift: 3, width: 2, enum: pwmSource, cc: 28, conf: doc}
   - {id: release_modify,  name: Release cutoff (1) / gets decay (0), mn: rd, byte: 0x20, shift: 6, width: 1, conf: doc,
      note: "0=release gets decay, 1=release cutoff. Panel button RELEASE GETS DECAY is ON when bit=0."}
   - {id: pwm1_kbd_trk,    name: PWM1 kbd tracking,      mn: 1c, byte: 0x20, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: prog_vol,        name: Program volume,         mn: PU, byte: 0x21, shift: 0, width: 7, conf: doc}
+  - {id: prog_vol,        name: Program volume,         mn: PU, byte: 0x21, shift: 0, width: 7, cc: 9, conf: doc}
   - {id: pwm2_kbd_trk,    name: PWM2 kbd tracking,      mn: 2c, byte: 0x21, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: vco1_detune,     name: VCO1 detune,            mn: dE, byte: 0x22, shift: 0, width: 7, conf: doc}
+  - {id: vco1_detune,     name: VCO1 detune,            mn: dE, byte: 0x22, shift: 0, width: 7, cc: 22, conf: doc}
   - {id: linear_fm,       name: Linear FM (VCO2->VCO1), mn: FN, byte: 0x22, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: lfo2_rate,       name: LFO2 rate,              mn: L2, byte: 0x23, shift: 0, width: 7, conf: doc}
+  - {id: lfo2_rate,       name: LFO2 rate,              mn: L2, byte: 0x23, shift: 0, width: 7, cc: 110, conf: doc}
   - {id: mod_kbd_cv,      name: Mod banks use kbd CV (not velocity), mn: KC, byte: 0x23, shift: 7, width: 1, conf: doc,
      note: "0=keyboard control voltage, 1=keyboard velocity. Panel KBD TRACK button is ON when bit=0."}
   - {id: lfo2_half_trk,   name: LFO2 1/2 tracking,      mn: 2H, byte: 0x24, shift: 3, width: 1, activeLow: true, conf: doc}
@@ -93,10 +96,10 @@ params:
   - {id: lfo2_kbd_trk,    name: LFO2 kbd tracking,      mn: 2F, byte: 0x24, shift: 5, width: 1, activeLow: true, conf: doc}
   - {id: lfo1_kbd_trk,    name: LFO1 kbd tracking,      mn: 1F, byte: 0x24, shift: 6, width: 1, activeLow: true, conf: doc}
   - {id: mod_vel_inv,     name: Mod banks velocity invert, mn: UI, byte: 0x24, shift: 7, width: 1, activeLow: true, conf: doc}
-  - {id: vco2_pwm_depth,  name: VCO2 PWM depth,         mn: 2d, byte: 0x25, shift: 0, width: 4, conf: doc}
-  - {id: vco1_pwm_depth,  name: VCO1 PWM depth,         mn: 1d, byte: 0x25, shift: 4, width: 4, conf: doc}
-  - {id: vco2_init_pw,    name: VCO2 initial PW,        mn: P2, byte: 0x26, shift: 0, width: 7, conf: doc}
-  - {id: taper_select,    name: Velocity taper select,  mn: tS, byte: 0x27, shift: 0, width: 2, enum: taperSelect, conf: scan}
+  - {id: vco2_pwm_depth,  name: VCO2 PWM depth,         mn: 2d, byte: 0x25, shift: 0, width: 4, cc: 26, conf: doc}
+  - {id: vco1_pwm_depth,  name: VCO1 PWM depth,         mn: 1d, byte: 0x25, shift: 4, width: 4, cc: 25, conf: doc}
+  - {id: vco2_init_pw,    name: VCO2 initial PW,        mn: P2, byte: 0x26, shift: 0, width: 7, cc: 24, conf: doc}
+  - {id: taper_select,    name: Velocity taper select,  mn: tS, byte: 0x27, shift: 0, width: 2, enum: taperSelect, cc: 112, conf: scan}
   - {id: clip_vca,        name: Clip VCA,               mn: CU, byte: 0x27, shift: 3, width: 1, activeLow: true, conf: scan}
   - {id: clip_mod,        name: Clip mod bank,          mn: Cn, byte: 0x27, shift: 4, width: 1, activeLow: true, conf: scan}
   # bytes 0x28-0x2C: undocumented in every known copy of the format sheet -> decoded in Phase 0 (docs/rev4-ram-map.md)

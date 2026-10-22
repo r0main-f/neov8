@@ -132,6 +132,7 @@ export function neoInspect(m: Machine): Record<string, unknown> {
     globals: {
       midiChR: G(0) + 1, midiChL: G(1) + 1, omniR: !!(G(2) & 1), omniL: !!(G(2) & 2),
       rxNotes: !!(G(3) & 1), rxProgram: !!(G(3) & 2), rxSysex: !!(G(3) & 8), txNotes: !!(G(4) & 1), txProgram: !!(G(4) & 2),
+      rxCtrl: !!(G(3) & 4), txCtrl: !!(G(4) & 4),
       pcTarget: G(5) ? 'step' : 'prog', localOn: !!G(6), potMode: ['pickup', 'jump', 'relative'][G(7)],
       trimMode: G(8) ? 'direct' : 'trim', displayHoldMs: G(9) * 100, powerOnStep: G(10) ? 'zero' : 'last',
       arpClock: ['int', 'ext', 'midi'][G(11)], steal: G(12) ? 'none' : 'oldest', uniDetune: G(13),

@@ -127,12 +127,11 @@ ui_pk_fwdrev:
         bne @p
         clc
         adc PERF+PF_STEP
-        jsr ui_mod100
-        jmp ui_recall_step_n
+        bcc @m                      ; always (A < 200)
 @p:     clc
         adc PERF+PF_PROG_R,x
-        jsr ui_mod100
-        jmp ui_load_prog
+@m:     jsr ui_mod100
+        jmp ui_recall_tx
 
 ; A = 1 for FWD, 99 for REV (add then mod 100)
 ui_fwdrev_delta:
@@ -437,10 +436,7 @@ ui_play_digit:
         ldx ui_ent
         ldy #$ff
         sty ui_ent
-        cpx #2
-        bne @p
-        jmp ui_recall_step_n
-@p:     jmp ui_load_prog
+        jmp ui_recall_tx
 
 ; ---------------------------------------------------------------- pots on the Normal page
 ui_play_pot:

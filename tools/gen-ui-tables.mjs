@@ -62,10 +62,11 @@ const ch = (c) => {
 };
 
 // ---------------------------------------------------------------- parameters
-const pByte = [], pShift = [], pMask = [], pSMask = [], pFlags = [], pMn0 = [], pMn1 = [];
+const pByte = [], pShift = [], pMask = [], pSMask = [], pFlags = [], pMn0 = [], pMn1 = [], pCc = [];
 for (const p of PARAMS) {
   const mask = (1 << p.width) - 1;
   pByte.push(p.byte);
+  pCc.push(p.cc ?? 0); // CC 0 (bank select) is never mapped: 0 = none, the param goes out as NRPN
   pShift.push(p.shift);
   pMask.push(mask);
   pSMask.push((mask << p.shift) & 0xff);
@@ -176,6 +177,8 @@ ui_p_flags:                     ; bit7 active low, bits 2-0 enum id + 1 (0 = not
 ${rows(pFlags)}
 ui_p_mn0:
 ${rows(pMn0)}
+ui_p_cc:                        ; MIDI CC (0 = none: NRPN); an 8-bit param ($FF mask) also uses cc+32 for the LSB
+${rows(pCc)}
 ui_p_mn1:
 ${rows(pMn1)}
 

@@ -796,7 +796,7 @@ midi_cc:
         bpl @n
         lda NV_GLOBALS+G_RX
         and #$10
-        beq @r
+        beq @prm
         lda midi_d0
         cmp #64
         beq @damp
@@ -805,7 +805,15 @@ midi_cc:
         beq @cv
         dex
         bpl @c
-@r:     rts                         ; TODO: CC map of program parameters (lead's parameter table)
+@prm:   lda NV_GLOBALS+G_RX         ; program parameter CCs (map: docs/parameters.md) -> each addressed side
+        and #$04
+        beq @r
+        lda midi_mask
+        sta midi_smask
+        lda #<ui_cc_in
+        ldy #>ui_cc_in
+        jmp midi_eachv
+@r:     rts
 @cv:    lda midi_d1
         ldy #0
         jmp eng_ctrl

@@ -107,6 +107,30 @@ ui_load_prog:
         ldx ui_d
         jmp ui_apply_prog
 
+; Panel recall (keypad, FWD/REV, footswitch). X = 0 RIGHT / 1 LEFT program, 2 step; A = number.
+; MIDI out: program change when G_PC_TARGET matches (a step goes on the RIGHT channel), and for a step the
+; Rev4 SysEx "new step" F0 03 00 ss F7 (SysEx on). MIDI-received recalls (ui_recall_prog/step) send nothing.
+ui_recall_tx:
+        pha
+        cpx #2
+        beq @st
+        jsr ui_load_prog            ; X preserved
+        pla
+        ldy NV_GLOBALS+G_PC_TARGET
+        beq @pc
+        rts
+@st:    jsr ui_recall_step_n
+        pla
+        tax
+        lda #0
+        jsr midi_sx_event           ; X preserved
+        lda NV_GLOBALS+G_PC_TARGET
+        beq @r
+        txa
+        ldx #0
+@pc:    jmp midi_pc_out
+@r:     rts
+
 ; A = step: battery step -> PERF, both programs -> edit buffers, apply
 ui_recall_step_n:
         sta PERF+PF_STEP

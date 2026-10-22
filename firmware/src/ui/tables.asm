@@ -85,7 +85,7 @@ ui_gdef:
         .byte 1                 ; G_MIDI_CH_L  channel 2
         .byte 0                 ; G_OMNI
         .byte $1f               ; G_RX notes, PC, CC/NRPN, SysEx, bend/mod/pressure
-        .byte $03               ; G_TX notes, PC
+        .byte $07               ; G_TX notes, PC, panel edits (CC / NRPN)
         .byte 0                 ; G_PC_TARGET programs
         .byte 1                 ; G_LOCAL on
         .byte 0                 ; G_POTMODE pickup

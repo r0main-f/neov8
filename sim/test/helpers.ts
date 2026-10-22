@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseIntelHex } from '../src/machine/machine';
+import { demoBank } from '../src/proto/patch';
 
 export const ROOT = join(__dirname, '../..');
 export const STOCK_ZIP = join(ROOT, 'Voyetra 8 synths/Voyetra8_rev4_CSR_ROMS.zip');
@@ -62,4 +63,29 @@ export function tp(b: { machine: { ram: Uint8Array }; run(ms: number): void }, c
   for (let i = 0; i < 400 && ram[TP + 4] === done; i++) b.run(5);
   if (ram[TP + 4] === done) throw new Error(`test port command ${cmd} not executed`);
   b.run(20);
+}
+
+/** Stock 24-byte step (docs/rev4-ram-map.md §4) for the prototype's defaultPerf, as firmware/src/ui/store.asm packs it. */
+function defaultStep(progR: number, progL: number): number[] {
+  const s = new Array(24).fill(0);
+  s[0] = 0x80 | 2; // WHOLE 8, arp mode R = up
+  s[1] = progR;
+  s[2] = progL;
+  s[3] = 1 << 6; // octave R normal
+  s[4] = (1 << 6) | (60 - 12); // octave L normal, split C4 (key index = note - 12)
+  s[5] = 64; // arp speed
+  s[20] = 2 ^ 0x30; // arp mode L = up (byte stored XOR $30)
+  return s;
+}
+
+/** Battery RAM image matching the prototype's power-on state (programs = demoBank, L 00 / R 01). */
+export function protoBattery(): Uint8Array {
+  const b = new Uint8Array(0x2000);
+  demoBank().forEach((p, n) => b.set(p, 40 * n));
+  b[0x0fff] = 0xaa;
+  for (let n = 0; n < 100; n++) b.set(defaultStep(n === 0 ? 1 : 0, 0), 0x1000 + 24 * n);
+  // footswitch records as the prototype's defaults (fsw [34, 35, 52, none], toggle on #2), stock magic
+  b.set([0x80, 34, 0xff, 0x80, 35, 0xff, 0x00, 52, 0xff, 0x80, 0xff, 0xff, 0x00, 0x12, 0xff, 0x00, 0x13, 0xff], 0x1a46);
+  b[0x1a58] = 0xa5;
+  return b;
 }

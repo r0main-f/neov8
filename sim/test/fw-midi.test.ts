@@ -8,8 +8,8 @@ import { buildFirmware, loadNeoRomFrom, loadStockRom, hasStock, neoSymbols, read
 const BUILD = 'build-midi';
 // stub call-log ids (firmware/src/stubs/*.asm)
 const ENG_APPLY_PROG = 0x11, ENG_SIDE_ON = 0x15, ENG_SIDE_OFF = 0x16, ENG_ALL_OFF = 0x17, ENG_CTRL = 0x18;
-const UI_RECALL_PROG = 0x20, UI_RECALL_STEP = 0x21, UI_SYSEX_IN = 0x22, UI_KEY = 0x23, TUNE_RUN = 0x40;
-const MIDI_IDS = new Set([ENG_APPLY_PROG, ENG_SIDE_ON, ENG_SIDE_OFF, ENG_ALL_OFF, ENG_CTRL, UI_RECALL_PROG, UI_RECALL_STEP, UI_SYSEX_IN, UI_KEY, TUNE_RUN]);
+const UI_RECALL_PROG = 0x20, UI_RECALL_STEP = 0x21, UI_SYSEX_IN = 0x22, UI_KEY = 0x23, UI_CC_IN = 0x25, TUNE_RUN = 0x40;
+const MIDI_IDS = new Set([ENG_APPLY_PROG, ENG_SIDE_ON, ENG_SIDE_OFF, ENG_ALL_OFF, ENG_CTRL, UI_RECALL_PROG, UI_RECALL_STEP, UI_SYSEX_IN, UI_KEY, UI_CC_IN, TUNE_RUN]);
 
 // battery RAM offsets ($4000 base)
 const PROG = (n: number) => 40 * n;
@@ -237,6 +237,18 @@ describe('MIDI driver and parser', () => {
     expect(v8(b, 'midi_clock')).toBe(3);
     expect(v8(b, 'midi_rtflags')).toBe(7);
     expect(b.machine.cpu.illegal).toBe(0);
+  });
+
+  it('program parameter CCs go to ui_cc_in for each side the channel addresses (G_RX bit2)', () => {
+    const b = boot({ chR: 0, chL: 0 }); // both sides on channel 1
+    send(b, [0xb0, 74, 99, 0xb1, 74, 5]);
+    expect(calls(b)).toEqual([{ id: UI_CC_IN, x: 0, a: 74, y: 99 }, { id: UI_CC_IN, x: 1, a: 74, y: 99 }]);
+    clearLog(b);
+    send(b, [0xb0, 1, 50]); // mod wheel: a performance controller, not a parameter
+    expect(calls(b)).toEqual([{ id: ENG_CTRL, x: 1, a: 50, y: 0 }]);
+    const off = boot({ rx: 0x1b });
+    send(off, [0xb0, 74, 99]);
+    expect(calls(off)).toEqual([]);
   });
 
   it('transmits notes on the side channel (G_TX bit0) and program changes', () => {

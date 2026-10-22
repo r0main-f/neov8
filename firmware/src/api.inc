@@ -94,7 +94,7 @@ G_MIDI_CH_R = 0             ; 0-15
 G_MIDI_CH_L = 1
 G_OMNI      = 2             ; bit0 R, bit1 L
 G_RX        = 3             ; bit0 notes, bit1 program change, bit2 CC/NRPN params, bit3 SysEx, bit4 bend/mod/pressure
-G_TX        = 4             ; bit0 notes, bit1 program change, bit2 panel CC/NRPN
+G_TX        = 4             ; bit0 notes, bit1 program change, bit2 panel edits as CC (switches: NRPN)
 G_PC_TARGET = 5             ; 0 programs, 1 steps
 G_LOCAL     = 6             ; 1 local on
 G_POTMODE   = 7             ; 0 pickup, 1 jump, 2 relative
@@ -163,6 +163,7 @@ FW_VERSION_MIN = 1
 ; ui:    ui_init  ui_key (A = button code, X = raw 8279 byte: bit6 = 1 when A440 is up)
 ;        ui_pot (X = pot index 0-14, A = 0-127)  ui_service (main loop)  ui_recall_prog (X side, A num)
 ;        ui_recall_step (A num)  ui_sysex_in (complete legacy/NeoV8 SysEx in midi_sxbuf)
+;        ui_cc_in (X side, A controller, Y value: program parameter CC, G_RX bit2; sends nothing back)
 ; midi:  midi_init  midi_nmi  midi_poll (main loop)  midi_tx (A byte, X/Y kept)  midi_note_out (X side, A note, Y vel; Y=0 off)
 ;        midi_pc_out (X side, A num)  midi_cc_out (X side, A cc, Y val)  midi_nrpn_out (X side, A byte, Y raw value)
 ;        midi_sx_event (A cmd, X data or $FF)  midi_dump_all (A parts: bit0 programs, 1 steps, 2 globals, 3 taper/fsw block)
