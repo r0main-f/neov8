@@ -1,7 +1,8 @@
 # Voyetra Eight voice path — model for the NeoV8 sound engine
 
 How each control voltage (CV) the CPU writes becomes sound, card by card, with the constants the sound engine
-(`engine/`, plan: "NeoV8 Sound") uses. Every constant has a source and a confidence:
+(`engine/`, plan: "NeoV8 Sound") uses. What is settled, what still needs a measurement, and the recording
+protocol for a real unit: `docs/audio-validation.md`. Every constant has a source and a confidence:
 
 - **L** legible on the schematic;
 - **P** partly legible;
