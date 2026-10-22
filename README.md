@@ -46,3 +46,21 @@ npm test           # scenarios + CPU + stock ROM + firmware tests (needs cc65: b
   NRPN in and out, legacy and NeoV8 SysEx, clock), autotune — `npm run fw`. The ROM uses NeoV8's own response
   curves (`tools/gen-curves.mjs`), so it builds without the stock ROM and can be shared (GitHub releases).
 * Phase 4 — bring-up on real hardware (`docs/burning.md`): not started
+
+## License
+
+Copyright (C) 2026 r0main-f and the NeoV8 contributors.
+
+* **Firmware, simulator, tools and specs** (`firmware/`, `sim/`, `tools/`, `spec/`, build files): GNU General
+  Public License v3.0 or later ([`LICENSE`](LICENSE)). You may use, modify and burn NeoV8; if you distribute a
+  modified version (source or ROM images), you must share its source under the same license.
+* **Documentation** (`docs/`): Creative Commons Attribution-ShareAlike 4.0 International
+  ([`docs/LICENSE`](docs/LICENSE)).
+
+NeoV8 is an independent project, not affiliated with or endorsed by Octave-Plateau Electronics or its
+successors. "Voyetra" and "Octave-Plateau" are names of their respective owners, used here only to say which
+instrument this firmware is for. The original Rev4 firmware, manuals and ROM dumps are not part of this
+repository and are not covered by these licenses: the release ROM images use NeoV8's own response curves
+(`tools/gen-curves.mjs`); `npm run fw:stock` builds a personal image from your own stock ROM dump, which you
+must not distribute.
+
