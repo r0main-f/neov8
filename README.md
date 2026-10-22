@@ -50,13 +50,22 @@ npm test           # scenarios + CPU + stock ROM + firmware tests (needs cc65: b
 
 ## Sound engine (in progress)
 
-`engine/` is a Rust workspace for a native Voyetra Eight (plugin + standalone): an emulator of the CPU card
-that runs the real ROMs (`v8-machine`, a behaviour-identical port of `sim/src/machine`, checked by
-`sim/test/engine-diff.test.ts`) and, next, a model of the analog voice cards (`docs/audio-model.md`).
+`engine/` is a Rust workspace for a native Voyetra Eight: an emulator of the CPU card that runs the real ROMs
+(`v8-machine`, a behaviour-identical port of `sim/src/machine`, checked by `sim/test/engine-diff.test.ts`) and a
+model of the analog voice cards, modulation banks included (`v8-voice`, `docs/audio-model.md`; what is settled and
+what still needs a real unit: `docs/audio-validation.md`).
 Needs Rust (`brew install rustup && rustup default stable`, with `$(brew --prefix rustup)/bin` on the PATH):
 `npm run engine:build`, `npm run engine:test`.
-`engine/target/release/v8-cli render <script.json> <out.wav>` plays a scripted session (boot, AUTO TUNE, panel,
-notes, MIDI) on either ROM and writes the audio (first version of the voice model: no modulation matrix yet).
+
+* **Standalone app:** `npm run app` builds the NeoV8 ROM and starts NeoV8 with a front panel (displays, LEDs,
+  buttons, trimmers, joystick/pressure/pedal, on-screen keyboard). It uses the first MIDI input it finds (a USB
+  keyboard or interface); `npm run app -- --midi-input ""` lists the ports, `--midi-output <name>` sends the
+  instrument's MIDI out, `--help` shows the audio options. The first start tunes the oscillators (AUTO TUNE) on a
+  fresh battery RAM; programs, steps and tuning are kept in `~/Library/Application Support/NeoV8/battery.bin`.
+  A440 is a latch in the window: click it, then the button to combine it with.
+* **Plugin:** the same crate (`engine/crates/v8-plugin`) exports CLAP and VST3; bundling for DAWs is the next step.
+* `engine/target/release/v8-cli render <script.json> <out.wav>` plays a scripted session (boot, AUTO TUNE, panel,
+  notes, MIDI) on either ROM and writes the audio.
 
 ## License
 

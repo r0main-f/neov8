@@ -1,0 +1,24 @@
+[package]
+name = "v8-plugin"
+description = "NeoV8: a Voyetra Eight as a standalone app and a CLAP / VST3 plugin (nih-plug, egui front panel)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+# cdylib for the plugin formats, lib for the standalone binary
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "neov8"
+path = "src/main.rs"
+
+[dependencies]
+v8-core = { path = "../v8-core" }
+v8-voice = { path = "../v8-voice" }
+v8-machine = { path = "../v8-machine" }
+# nih-plug (ISC; its VST3 bindings are GPL-3.0, compatible with this crate) pinned to a known commit
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", rev = "de421011f41a6d10fc8c7a6084e4f4dee0143683", features = ["standalone"] }
+nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git", rev = "de421011f41a6d10fc8c7a6084e4f4dee0143683" }
+rtrb = "0.3"
+midir = "0.9.1"

@@ -14,6 +14,7 @@
     "roms": "node tools/rom/extract-roms.mjs",
     "fw": "node tools/gen-font.mjs && node tools/gen-ui-tables.mjs && node tools/gen-curves.mjs && make -C firmware",
     "engine:build": "cargo build --release --manifest-path engine/Cargo.toml",
+    "app": "npm run fw && cargo run --release --manifest-path engine/Cargo.toml -p v8-plugin --bin neov8 --",
     "engine:test": "cargo test --manifest-path engine/Cargo.toml && cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings",
     "fw:stock": "npm run roms && node tools/gen-font.mjs && node tools/gen-ui-tables.mjs && node tools/extract-tables.mjs && make -C firmware BUILD=build-stock DEFS=\"-D STOCK_TABLES\""
   },
