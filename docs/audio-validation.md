@@ -65,8 +65,11 @@ Sources used:
 - **No factory program names exist** in any manual or web source; the V8 stores numbers only.
 - **Public recordings.** None pairs a known program with its values. The Vintage Synthesizer Solutions demo
   (YouTube `NaDu9ls3Tow`, dry) shows its program numbers on the panel, but that unit does not hold the factory
-  bank (its program 22 plays; the factory program 22 has no waveform enabled), so it cannot be used for fitting.
-  It remains a general reference for character.
+  bank (its program 22 plays; the factory program 22 has no waveform enabled), and none of the four decoded banks
+  fits its sections (its "resonant" programs 4/7 and 0/0 have Q 0–9 in all of them). The narration confirms the
+  numbers and modes read from the panel (L09/R34 = step 54, etc.) and says the patches were tuned and their
+  filters adjusted. So it cannot be used for fitting; its dry filter sweeps with resonance (7:10, 9:00) remain a
+  reference for the swept SSM2044's character.
 - **No published measurements** of a real unit (levels, sweeps, envelope times) were found.
 
 ## 5. Recording protocol for a real unit (when available)
