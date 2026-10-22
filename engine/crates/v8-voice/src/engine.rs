@@ -102,6 +102,8 @@ pub struct Engine {
     a_vol_dn: f64,
     /// master volume (panel MASTER VOLUME pot), 0..1
     pub master: f64,
+    /// panel MASTER TUNE, semitones on both oscillators (range not documented; the panel knob gives ±1)
+    pub master_tune: f64,
     /// analog controllers of the mod banks: joystick X (−1..1: +X right, −X left), key pressure, Fc pedal (0..1)
     pub joystick_x: f64,
     pub pressure: f64,
@@ -143,6 +145,7 @@ impl Engine {
             a_vol_up: a(VOL_RISE_TAU),
             a_vol_dn: a(VOL_FALL_TAU),
             master: 1.0,
+            master_tune: 0.0,
             joystick_x: 0.0,
             pressure: 0.0,
             fc_pedal: 0.0,
@@ -239,6 +242,7 @@ impl Engine {
         }
         let fs = self.sr;
         let fc_max = FC_MAX.min(0.45 * fs);
+        let tune = (self.master_tune / 12.0).exp2();
         for i in 0..n {
             if i % BLOCK == 0 && self.dirty {
                 self.update_params();
@@ -296,10 +300,10 @@ impl Engine {
                     continue; // silent voice: skip the audio work (oscillators keep no phase while silent)
                 }
                 let (duty1, duty2) = (duty_at(&osc[2 * v + 1], vo.pw1), duty_at(&osc[2 * v], vo.pw2));
-                let t2 = vo.o2.tick(p.f2 * m[1].exp2() / fs, duty2, p.w2, None);
+                let t2 = vo.o2.tick(p.f2 * tune * m[1].exp2() / fs, duty2, p.w2, None);
                 let fm = if p.lin_fm { 1.0 + LIN_FM_DEPTH * vo.last_v2 } else { 1.0 };
                 let reset = if p.sync { t2.wrapped } else { None }; // hard sync on VCO2's saw reset
-                let t1 = vo.o1.tick((p.f1 * m[0].exp2() * fm).max(0.0) / fs, duty1, p.w1, reset);
+                let t1 = vo.o1.tick((p.f1 * tune * m[0].exp2() * fm).max(0.0) / fs, duty1, p.w1, reset);
                 vo.last_v2 = t2.out;
                 vo.last_v1 = t1.out;
                 let into = p.g2 * t2.out + p.gn * noise + if p.bypass { 0.0 } else { p.g1 * t1.out };

@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use v8_core::Instrument;
 
+pub mod bank;
 mod editor;
 pub mod panel;
 
@@ -28,6 +29,11 @@ const AUTOTUNE: u8 = 82;
 
 /// Set by the standalone binary: battery RAM is then also kept in a file between runs.
 pub static STANDALONE: AtomicBool = AtomicBool::new(false);
+/// A bank to load at start (standalone `--bank <file>`).
+pub static START_BANK: Mutex<Option<PathBuf>> = Mutex::new(None);
+/// The factory cassette recording in the repository's (not distributed) reference folder: loaded on a first start
+/// when it is there.
+pub const FACTORY_TAPE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../Voyetra 8 synths/voyetra-8_v8factorytapeB2.wav");
 
 pub enum Cmd {
     /// 8279 FIFO byte (bit 6 = 1 when A440 is up)
@@ -36,6 +42,10 @@ pub enum Cmd {
     Pot(usize, f64),
     /// VPK-5 keyboard: note, down, velocity
     Note(u8, bool, u8),
+    /// replace the battery RAM, then power-cycle (a loaded bank)
+    LoadBram(Box<[u8; 0x2000]>),
+    /// POWER switch: CPU reset, battery RAM kept
+    Power,
 }
 
 /// State shared between the audio thread and the editor.
@@ -44,6 +54,8 @@ pub struct Shared {
     pub cmd: Mutex<rtrb::Producer<Cmd>>,
     pub bram_dirty: AtomicBool,
     pub ready: AtomicBool,
+    /// last bank / start message for the editor
+    pub status: Mutex<String>,
 }
 
 #[derive(Params)]
@@ -56,6 +68,9 @@ pub struct V8Params {
     /// panel MASTER VOLUME (analog)
     #[id = "master"]
     pub master: FloatParam,
+    /// panel MASTER TUNE (analog), semitones
+    #[id = "tune"]
+    pub master_tune: FloatParam,
     /// keyboard joystick X: +X right, −X left (mod-bank controllers)
     #[id = "joyx"]
     pub joystick_x: FloatParam,
@@ -68,9 +83,10 @@ pub struct V8Params {
 impl Default for V8Params {
     fn default() -> Self {
         Self {
-            editor_state: EguiState::from_size(1180, 560),
+            editor_state: EguiState::from_size(1400, 640),
             bram: Mutex::new(Vec::new()),
             master: FloatParam::new("Master volume", 0.8, FloatRange::Linear { min: 0.0, max: 1.0 }),
+            master_tune: FloatParam::new("Master tune", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }).with_unit(" st"),
             joystick_x: FloatParam::new("Joystick X", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }),
             pressure: FloatParam::new("Key pressure", 0.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
             fc_pedal: FloatParam::new("Fc pedal", 0.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
@@ -149,6 +165,7 @@ impl Default for NeoV8 {
                 cmd: Mutex::new(tx),
                 bram_dirty: AtomicBool::new(false),
                 ready: AtomicBool::new(false),
+                status: Mutex::new(String::new()),
             }),
             cmd_rx: rx,
             inst: None,
@@ -259,7 +276,29 @@ impl Plugin for NeoV8 {
             if let Some(b) = bram_file().and_then(|p| std::fs::read(p).ok()) { bram = b; }
         }
         let have = bram.len() == 0x2000;
-        if !have { bram = default_bram(); }
+        let mut msg = String::new();
+        if !have {
+            bram = default_bram();
+            if let Ok(b) = bank::load(std::path::Path::new(FACTORY_TAPE)) {
+                b.apply(&mut bram);
+                msg = format!("first start: factory tape loaded ({})", b.summary());
+            } else {
+                msg = "first start: init bank (load a bank with LOAD BANK)".into();
+            }
+        }
+        if let Some(p) = START_BANK.lock().ok().and_then(|mut s| s.take()) {
+            match bank::load(&p) {
+                Ok(b) => {
+                    b.apply(&mut bram);
+                    msg = format!("{}: {}", p.file_name().map(|f| f.to_string_lossy()).unwrap_or_default(), b.summary());
+                }
+                Err(e) => msg = e,
+            }
+        }
+        if !msg.is_empty() {
+            nih_log!("NeoV8: {msg}");
+            if let Ok(mut s) = self.shared.status.lock() { *s = msg; }
+        }
         let sr = config.sample_rate as f64;
         let mut inst = Box::new(Instrument::new(NEOV8_ROM, Some(&bram[..]), sr, VCO_SEED));
         if !have {
@@ -281,10 +320,16 @@ impl Plugin for NeoV8 {
                 Cmd::Key(k) => inst.panel_key(k),
                 Cmd::Pot(ch, v) => inst.pot(ch, v),
                 Cmd::Note(n, down, vel) => inst.key(n, down, vel),
+                Cmd::LoadBram(b) => {
+                    inst.machine.set_bram(&b[..]);
+                    inst.machine.reset();
+                }
+                Cmd::Power => inst.machine.reset(),
             }
         }
         let e = &mut inst.engine;
         e.master = self.params.master.value() as f64;
+        e.master_tune = self.params.master_tune.value() as f64;
         e.joystick_x = self.params.joystick_x.value() as f64;
         e.pressure = self.params.pressure.value() as f64;
         e.fc_pedal = self.params.fc_pedal.value() as f64;
