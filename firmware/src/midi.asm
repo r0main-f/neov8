@@ -120,9 +120,29 @@ midi_rtbit: .byte $01, $02, $04
 ; ================================================================ TX
 ; midi_tx: queue A. Preserves X, Y (A is lost). If the ring is full it waits for the NMI to free a slot;
 ; after ~1.3 ms (4 byte times) without progress the byte is dropped and midi_txdrop counts it.
+; While a background-dump message is being built (midi_tobuf), bytes go to midi_dbuf instead; any other
+; output first queues the rest of a staged message.
 midi_tx:
         stx midi_txx
         sty midi_txy
+        ldx midi_tobuf
+        bne @stage
+        ldx midi_dlen
+        beq @raw
+        pha
+        jsr midi_dall
+        pla
+@raw:   jsr midi_txraw
+@out:   ldx midi_txx
+        ldy midi_txy
+        rts
+@stage: ldx midi_dlen
+        sta midi_dbuf,x
+        inc midi_dlen
+        jmp @out
+
+; A -> TX ring (waits for room, drops after the timeout). X, Y lost.
+midi_txraw:
         ldx midi_txwr
         inx
         ldy #0
@@ -131,15 +151,13 @@ midi_tx:
         dey
         bne @w
         inc midi_txdrop
-        jmp @out
+        rts
 @put:   dex
         sta midi_txbuf,x
         inx
         stx midi_txwr
         lda #ACR_RUNTX
         sta ACIA_CTRL               ; TX IRQ on (the NMI turns it off when the ring is empty)
-@out:   ldx midi_txx
-        ldy midi_txy
         rts
 
 ; A = byte -> two data bytes, low nibble first (legacy SysEx encoding). Preserves X, Y.
@@ -278,8 +296,10 @@ midi_msgs:
 
 ; ================================================================ dumps
 ; midi_dump_all: A = parts (bit0 100 programs, bit1 100 steps, bit2 NeoV8 globals, bit3 taper/footswitch
-; block). Starts a background dump: midi_poll sends one message whenever the TX ring has room, so the
-; main loop never blocks. midi_dmask <> 0 while it runs.
+; block). Starts a background dump: midi_poll builds one message at a time into midi_dbuf and queues it
+; 24 bytes per main-loop pass (64 when the ring runs low), so a pass stays short (pots, keys and the display
+; keep their pace during the 3 s dump). Any other MIDI output first queues the rest of the staged message
+; (midi_tx), so nothing lands inside a SysEx message. midi_dmask | midi_dlen <> 0 while it runs.
 midi_dump_all:
         and #$0f
         sta midi_dmask
@@ -288,11 +308,71 @@ midi_dump_all:
         rts
 
 midi_dump_step:
+        lda #1
+        sta potBoost                ; main.s pot_scan: up to 3 extra pots per long pass
+        lda midi_dlen
+        bne midi_dchunk             ; a staged message is being queued
         lda midi_txrd
         clc
         sbc midi_txwr               ; free = rd - wr - 1
-        cmp #140                    ; room for the largest message (globals: 132 bytes)
-        bcc @r
+        cmp #140                    ; the next message only when the whole of it fits: then any other output
+        bcc @r                      ; can queue the rest of it at once (midi_tx) without waiting
+        inc midi_tobuf              ; build the next one into midi_dbuf
+        jsr midi_dump_msg
+        dec midi_tobuf
+        jmp midi_dchunk
+@r:     rts
+
+; Queue up to 24 staged bytes while the TX ring has room, 64 when fewer than 32 wait (the 3.1 bytes/ms MIDI
+; line never idles); the staging is emptied after the last one.
+midi_dchunk:
+        lda midi_txwr
+        sec
+        sbc midi_txrd               ; bytes waiting in the ring
+        cmp #32
+        lda #24
+        bcs @c
+        lda #64                     ; running low: top it up so the line never idles
+@c:     sta midi_dcnt
+        ldx midi_dpos
+@l:     cpx midi_dlen
+        bcs @end
+        ldy midi_txwr
+        iny
+        cpy midi_txrd
+        beq @end                    ; ring full: next pass
+        dey
+        lda midi_dbuf,x
+        sta midi_txbuf,y
+        iny
+        sty midi_txwr
+        inx
+        dec midi_dcnt
+        bne @l
+@end:   stx midi_dpos
+        lda #ACR_RUNTX              ; TX IRQ on (the NMI turns it off when the ring is empty)
+        sta ACIA_CTRL
+        cpx midi_dlen
+        bcs midi_dclear
+        rts
+midi_dclear:
+        lda #0
+        sta midi_dlen
+        sta midi_dpos
+        rts
+
+; Queue every staged byte (waiting for room like midi_tx): before any other output.
+midi_dall:
+@l:     ldx midi_dpos
+        cpx midi_dlen
+        bcs midi_dclear
+        lda midi_dbuf,x
+        inc midi_dpos
+        jsr midi_txraw
+        jmp @l
+
+; next background-dump message -> midi_tx (staged)
+midi_dump_msg:
         lda midi_dmask
         lsr
         bcs @prog
@@ -367,6 +447,8 @@ midi_send_dump:
 
 ; tmp bytes from (ptr),Y stepping midi_dir -> nibbles
 midi_txnib:
+        lda midi_tobuf
+        bne @fast
 @l:     lda (ptr),y
         jsr midi_txnb
         tya
@@ -375,6 +457,27 @@ midi_txnib:
         tay
         dec tmp
         bne @l
+        rts
+@fast:  ldx midi_dlen               ; background dump: straight into the staging buffer
+@f:     lda (ptr),y
+        pha
+        and #$0f
+        sta midi_dbuf,x
+        inx
+        pla
+        lsr
+        lsr
+        lsr
+        lsr
+        sta midi_dbuf,x
+        inx
+        tya
+        clc
+        adc midi_dir
+        tay
+        dec tmp
+        bne @f
+        stx midi_dlen
         rts
 
 ; A = number, X = kind -> ptr, midi_kind. C = 1 if the number is not valid.
@@ -547,9 +650,11 @@ midi_poll:
 @slow:  jsr midi_byte
         jmp @loop
 @idle:  lda midi_dmask
-        beq @r
+        ora midi_dlen
+        beq @off
         jmp midi_dump_step
-@r:     rts
+@off:   sta potBoost                ; dump over: pot_scan back to its normal pace
+        rts
 
 midi_byte:
         cmp #$80

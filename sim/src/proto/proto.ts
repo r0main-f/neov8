@@ -92,6 +92,15 @@ export class NeoV8Proto implements Backend {
   }
 
   // =============================================================== Backend API
+  /** VPK-5 front button: a plain panel REV / FWD press (no A440, no auto-repeat in the prototype). */
+  kbdButton(id: 'fwd' | 'rev', down: boolean): void {
+    if (!down || this.held.has(id)) return;
+    const sh = this.held.delete('a440');
+    this.button(id, true);
+    this.button(id, false);
+    if (sh) this.held.add('a440');
+  }
+
   button(id: ButtonId, down: boolean): void {
     if (down) {
       if (this.held.has(id)) return;
@@ -486,7 +495,7 @@ export class NeoV8Proto implements Backend {
       case 'reldef_r': p.relDefR = !p.relDefR; return;
       case 'pbdef_l': p.pbDefL = !p.pbDefL; return;
       case 'pbdef_r': p.pbDefR = !p.pbDefR; return;
-      case 'arp_up': p.arpMode = p.arpMode === 'down' ? 'updown' : 'up'; return;
+      case 'arp_up': p.arpMode = sh ? 'played' : p.arpMode === 'down' ? 'updown' : 'up'; return;
       case 'arp_down':
         if (sh) return this.enterMenu(10); // legacy: MIDI pages
         p.arpMode = p.arpMode === 'up' ? 'updown' : 'down';
@@ -1096,7 +1105,8 @@ export class NeoV8Proto implements Backend {
     this.arp.phase -= 1;
     for (const side of ['L', 'R'] as Side[]) {
       if (!(side === 'L' ? p.arpL : p.arpR)) continue;
-      const notes = [...this.keysDown].filter((n) => this.sidesFor(n).includes(side)).sort((a, b) => a - b);
+      const held = [...this.keysDown].filter((n) => this.sidesFor(n).includes(side)); // in the order they went down
+      const notes = p.arpMode === 'played' ? held : held.sort((a, b) => a - b);
       const prevNote = this.arp.playing[side];
       if (prevNote !== null) for (const v of this.voices) if (v.side === side && v.note === prevNote) v.gate = false;
       if (!notes.length) { this.arp.playing[side] = null; continue; }
@@ -1317,7 +1327,7 @@ export class NeoV8Proto implements Backend {
         on('hold_l', p.holdL); on('hold_r', p.holdR);
         on('reldef_l', p.relDefL); on('reldef_r', p.relDefR);
         on('pbdef_l', p.pbDefL); on('pbdef_r', p.pbDefR);
-        on('arp_up', p.arpMode === 'up' || p.arpMode === 'updown');
+        on('arp_up', p.arpMode === 'played' ? 'blink' : p.arpMode === 'up' || p.arpMode === 'updown');
         on('arp_down', p.arpMode === 'down' || p.arpMode === 'updown');
         on('arp_random', p.arpMode === 'random');
         on('arp_left', p.arpL); on('arp_right', p.arpR); on('arp_pause', p.arpPause);

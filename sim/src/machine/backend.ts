@@ -75,6 +75,11 @@ export class MachineBackend implements Backend {
     else this.machine.keyUp(note);
   }
   midiIn(bytes: number[]): void { this.machine.acia.receive(bytes); }
+  /** VPK-5 keyboard front button REV / FWD pressed / released (the ROM debounces and auto-repeats it). */
+  kbdButton(id: 'fwd' | 'rev', down: boolean): void {
+    if (id === 'fwd') this.machine.vpkFwd = down;
+    else this.machine.vpkRev = down;
+  }
   /** Footswitch n (0-5 = PIA2 PB0-PB5: B-L, B-R, A-L, A-R, jack REV, jack FWD) closed / open. */
   footswitch(n: number, closed: boolean): void {
     const p = this.machine.pia2;

@@ -58,8 +58,9 @@ page id (`L1.`) in EDIT — while the edit buffer differs from the stored progra
 | A440+EDIT | SYSTEM menu |
 | hold a key on the keyboard and press SPLIT (as on Rev4) | split point, shown as a note: `SP  C3` (sharp = decimal point) |
 | WHOLE 8 / SPLIT / LAYER, UNISON L/R, HOLD, REL DEF, BEND DEF | as printed (performance settings) |
-| OCTAVE L/R | cycles normal → up → down; A440+OCTAVE = arpeggiator octave range 1–4 |
-| ARP UP / DOWN / RANDOM | mode; UP then DOWN (or DOWN then UP) = up/down |
+| OCTAVE L/R | cycles normal → up → down; A440+OCTAVE = arpeggiator octave range 1–4 (up / as played climb the octaves, down descends from the top one, up/down goes through all of them and back, random picks one) |
+| Keyboard (VPK-5) REV / FWD | same as the panel REV / FWD, with auto-repeat when held (0.65 s, then every 0.15 s), as on Rev4 |
+| ARP UP / DOWN / RANDOM | mode; UP then DOWN (or DOWN then UP) = up/down; **A440+ARP UP = as played** (the keys in the order they went down; UP blinks) |
 | ARP LEFT / RIGHT / PAUSE | arpeggiate that side / pause |
 | AUTO TUNE | autotune with progress `tU v.o` (voice.osc) then `tU oK` or the failing oscillator |
 | A440+AUTO TUNE | A440 reference tone on/off |
@@ -162,7 +163,8 @@ while recording; sequences are sent over SysEx instead of tape. Sequences live i
   holding a key on the keyboard and pressing SPLIT (the Rev4 gesture), and the prototype's "hold A440 to
   audition the store destination" was dropped.
 * **Steps**: the stock 24-byte format is kept (stock steps remain readable both ways). NeoV8 adds one byte per
-  step in the battery extension block (`NV_STEPEXT`) for HOLD, ARP PAUSE and the arpeggiator octave range.
+  step in the battery extension block (`NV_STEPEXT`) for HOLD, ARP PAUSE, the arpeggiator octave range and the
+  as-played order.
   The voice-disable mask (menu 90) is part of the step, as on Rev4 (step byte 22).
 * **Footswitches** (menu 40–47) edit the stock battery records, so a footswitch setup survives a swap back
   to the stock ROM; `99` = no function.

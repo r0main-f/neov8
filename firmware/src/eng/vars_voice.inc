@@ -84,6 +84,13 @@ vx_pmask:   .res 1
 vx_aedge:   .res 2          ; arpeggiator clock level last seen per side
 vx_alast:   .res 2          ; voice of the last arpeggio note per side
 vx_adir:    .res 2          ; up/down direction state per side
+vx_aoc:     .res 2          ; arpeggio octave (0 .. PF_ARP_OCT - 1) per side
+vx_aofs:    .res 2          ; semitones added to the last arpeggio note per side (octave range)
+vx_ord:     .res 8          ; key-down stamp per voice (as-played order)
+vx_ordc:    .res 1          ; stamp counter
+vx_apl:     .res 1          ; non-zero: this arpeggio step walks the keys as played (keys = age)
+vx_akn:     .res 1          ; arpeggio scratch: key, offset / limit
+vx_akf:     .res 1
 vx_akeyp:   .res 2          ; key-down state of the previous side update
         .bss
 vx_dyn:     .res 128        ; per S&H slot: non-zero = written by the engine, not refreshed

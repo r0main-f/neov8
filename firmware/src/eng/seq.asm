@@ -1243,11 +1243,14 @@ seq_dump:
 sq_dstep:                           ; one message when the TX ring has room (seq_service)
         ldx sq_dblk
         bmi @r
+        lda midi_dlen
+        bne @r                      ; the previous message is still being queued (midi.asm midi_dchunk)
         lda midi_txrd
         clc
         sbc midi_txwr               ; free = rd - wr - 1
         cmp #100
         bcc @r
+        inc midi_tobuf              ; built into midi_dbuf, queued by midi_poll a chunk per pass
         jsr midi_sxhdr
         lda #$25
         cpx #SQ_NBLK
@@ -1278,7 +1281,8 @@ sq_dstep:                           ; one message when the TX ring has room (seq
         lda #$ff
         sta sq_dblk
 @f7:    lda #$f7
-        jmp midi_tx
+        jsr midi_tx
+        dec midi_tobuf
 @r:     rts
 
 ; Received NeoV8 command $24 / $25 (midi.asm; needs the controller flag or the SYSEX RECEIVE page). Stops the

@@ -285,8 +285,11 @@ ui_pk_oct:
 @s:     sta PERF+PF_OCT_R,x
         jmp ui_apply_perf
 
-; arpeggiator mode (stock encoding 0 down, 1 random, 2 up, 3 up/down), set for both sides
+; arpeggiator mode (stock encoding 0 down, 1 random, 2 up, 3 up/down; NeoV8 6 = as played), set for both sides
 ui_pk_arpup:
+        ldx #6                      ; A440+ARP UP: as played (the keys in the order they went down)
+        lda ui_sh
+        bne ui_set_arpmode
         ldx #2
         lda PERF+PF_ARP_MODE_R
         bne ui_set_arpmode          ; was not DOWN

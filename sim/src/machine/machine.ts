@@ -50,6 +50,9 @@ export class Machine {
   /** VPK-5: notes held, with the cycle the first contact closed and the delay to the second contact */
   private vpk = new Map<number, { t: number; delay: number }>();
   private vpkClock = 0;
+  /** VPK-5 front buttons (pressed = true), read in the frame header after clocks 2 (REV, line A) and 3 (FWD, line B) */
+  vpkRev = false;
+  vpkFwd = false;
   readonly io = new Map<number, AccessStat>();
   irqCount = 0;
   nmiCount = 0;
@@ -156,7 +159,12 @@ export class Machine {
   private vpkLine(line: 'A' | 'B'): number {
     // line B (second contact) of a key is read just after that key's clock, so one position later than A
     const pos = this.vpkClock - 7 - (line === 'B' ? 1 : 0);
-    if (pos < 0) return 0x80; // header buttons (FWD/REV, active low): not pressed
+    if (pos < 0) {
+      // header buttons, active low (stock $FC4F: clk, clk, read A = REV, clk, read B = FWD)
+      if (line === 'A' && this.vpkClock === 2) return this.vpkRev ? 0 : 0x80;
+      if (line === 'B' && this.vpkClock === 3) return this.vpkFwd ? 0 : 0x80;
+      return 0x80;
+    }
     const x = 60 - pos;
     if (x < 0 || x > 60) return line === 'A' ? 0 : 0x80;
     const note = (x ^ 0x3f) + 0x21;

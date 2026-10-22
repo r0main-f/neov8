@@ -18,7 +18,7 @@ const SQD = 0x0fe0;
 const SQD_LEN = 0x0fec;
 const PAGES = ['P1', 'P2', 'A', 'B', 'C', 'D'];
 const KB = ['whole', 'split', 'layer'];
-const ARP = ['down', 'random', 'up', 'updown'];
+const ARP: Record<number, string> = { 0: 'down', 1: 'random', 2: 'up', 3: 'updown', 6: 'played' };
 
 /**
  * LEDs the stock OS never drives on the Normal page ($6A-$6D): the firmware assumes EDIT, STORE, TAPE LOAD,

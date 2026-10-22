@@ -4,6 +4,7 @@ vx_apply:       rts
 vx_apply_perf:  rts
 vx_refresh:     rts
 vx_tick:        rts
+vk_btn:         rts
 vx_glide:       rts
 vx_service:     rts
 vx_key_on:      rts

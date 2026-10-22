@@ -176,7 +176,8 @@ Transmitted by NeoV8 (as the Rev4), when SysEx is on (`midi_sx_event (A cmd, X d
 
 **Sequence dump** (`seq_dump`, sequencer page): 76 messages `F0 03 24 bb <90 nibbles> F7` (95 bytes: the whole
 1140-slot sequence memory, 3-byte events in the stock Rev4 format, eng/ENGINE.md "Polysequencer"), then
-`F0 03 25 F7`; 7 224 bytes, 2.3 s, paced like the bulk dump (one message whenever the TX ring has 100 bytes free).
+`F0 03 25 F7`; 7 224 bytes, queued like the bulk dump (built into `midi_dbuf` when the TX ring has 100 bytes
+free, then a chunk per main-loop pass).
 Sent with the controller flag 0: load it on the SYSEX RECEIVE page. Tempo, quantize and song settings are not
 part of it (the stock's sequence tape did not hold them either).
 
@@ -184,9 +185,14 @@ Universal identity request `F0 7E <any> 06 01 F7` → `F0 7E 7F 06 02 03 4E 38 0
 
 **Bulk dump** (`midi_dump_all (A = parts)`, also the SYSEX DUMP button): parts bit0 = 100 programs as
 legacy cmd 1 (96 B each), bit1 = 100 steps as legacy cmd 2 (66 B each), bit2 = globals cmd $23
-(132 B), bit3 = taper/footswitch block as cmd 22 (118 B, last byte first). All parts: 16 450 bytes,
-5.3 s. The dump runs in the background from `midi_poll`: one message is queued whenever the TX ring has
-140 bytes free, so the panel stays live; `midi_dmask` ≠ 0 while it runs. Messages are sent with the
+(132 B), bit3 = taper/footswitch block as cmd 22 (118 B, last byte first). The dump runs in the background
+from `midi_poll`: when the TX ring has room for a whole message (140 bytes), the next one is built into a
+staging buffer (`midi_dbuf`), then queued 24 bytes per main-loop pass (64 when fewer than 32 wait in the
+ring), so a pass stays short and pots, keys and the display keep answering (a knob within ~0.1 s: while it
+runs, a long pass reads up to 3 extra pots, `potBoost`, main.s `pot_more`). Any other output (notes, CC,
+program change, replies) first queues the rest of the staged message, which always fits at once: nothing
+lands inside a SysEx message and nothing waits. 100 programs (9 600 bytes) take about 4.4 s (3.1 s at line
+rate, which the CPU can only reach by leaving the panel unread for up to half a second). `midi_dmask` | `midi_dlen` ≠ 0 while it runs. Messages are sent with the
 controller flag 0 (they come from a V8): to load them back, open the SYSEX RECEIVE page (`midi_rxall`)
 or have the librarian set bit 6. Round trip tested.
 
