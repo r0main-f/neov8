@@ -60,11 +60,13 @@ pub const BYPASS_GAIN: f64 = 0.25;
 // ---------------------------------------------------------------- Mixer card (S p27)
 /// voice VCA control smoothing: 1K + 1 µF (L)
 pub const VCA_TAU: f64 = 1.0e-3;
-/// output VCA control: the volume CV charges 2.2 µF through a diode + 470 Ω (≈ 1 ms) and discharges through the
-/// 10K into the control pin (≈ 22 ms) (L + I)
+/// output VCA control: the volume CV charges C35/C36 2.2 µF through 470 Ω + 1N4148 (≈ 1 ms) and discharges through
+/// R21/R22 18K into the control pin (≈ 40 ms) (mixer card redraw by J. Touzet, L)
 pub const VOL_RISE_TAU: f64 = 470.0 * 2.2e-6;
-pub const VOL_FALL_TAU: f64 = 10.0e3 * 2.2e-6;
-/// WHOLE 8 pair panning: 150K / 220K weights (L/I) -> the near-centre pairs lean ~3.3 dB
+pub const VOL_FALL_TAU: f64 = 18.0e3 * 2.2e-6;
+/// WHOLE 8 pair panning: pairs (2,3)/(4,5) reach their own output through 150K and, in WHOLE 8, the other one
+/// through 220K (DG308s; in SPLIT/LAYER the 220K joins their own side). With the channel gain trimmers set for
+/// equal voice levels (MM §2.5) that is 0.595 / 0.405: the near-centre pairs lean ~3.3 dB (L + I)
 pub const PAN_NEAR: f64 = 150.0 / (150.0 + 220.0);
 /// overall output scaling to digital full scale (one saw voice, filter open, full volume ≈ -12 dBFS)
 pub const OUT_GAIN: f64 = 0.06;

@@ -24,7 +24,8 @@ Sources used:
 | Linear FM | Pin 13 = reference current, 1M from +15 V; FM through 0.05 µF + 2M2: Δf/f ≈ v / 33 V | L/P + D | `LIN_FM_DEPTH` = 1/33 (was a guessed 0.05) |
 | SSM2024 VCAs | Linear, fully off below ≈ 0.2 V of control | D | threshold on the VCO-level, noise, voice and output VCAs |
 | Cutoff CV | 0.01 µF across the summer U6: ≈ 1 ms pole on the whole cutoff CV; range bounded by the ±8/−7 V summers | P + MM | `FC_TAU`, `FC_MIN`/`FC_MAX` |
-| Volume path | MASTER VOL × program VOL through two SSM2024s; VOL rises in ≈ 1 ms, falls in ≈ 22 ms | L + I | asymmetric smoothing |
+| Volume path | MASTER VOL × program VOL through two SSM2024s; VOL rises in ≈ 1 ms (470 Ω), falls in ≈ 40 ms (18K) | L | asymmetric smoothing |
+| Output sides | Voices 0–3 (the RIGHT program) reach the RIGHT jack; DG308s cross pairs (2,3)/(4,5) over in WHOLE 8 only; trimmers equalise voice levels (MM §2.5) | L (mixer redraw) | left/right were swapped in the model before; now fixed |
 | Resonance | Oscillation at ≈ 425 µA; slow at the low end, fast near oscillation; passband loss with Q | D | already true of the linear-feedback ladder (DC gain 1/(1+k)); no change |
 | Filter input clip | ±50 mV at the SSM2044 input ≈ 2.7× one full-level VCO | D + I | consistent with `DRIVE_V` = 8; no change |
 | Envelope rates | The original ADSR rate table, so envelope timing matches a stock unit | C | firmware |
@@ -34,7 +35,6 @@ Sources used:
 | Item | Finding | Confidence | Why not yet |
 |---|---|---|---|
 | VCO2 input level | VCO2's level VCA control resistor reads 47K against 22K for VCO1: VCO2 would be ≈ half as loud at the same level | P | Would change every patch's balance; confirm on the board or by recording first |
-| Mixer weights | Main VCA inputs: pair (0,1) 100K, (2,3) 150K, (4,5)/(6,7) 220K via the DG308 | L | The switching topology per keyboard mode is not fully read |
 | Q modulation | Q mod gain ≈ −1.5, initial Q gain ≈ +2.5 (U7, 100K / 150K) | P | Needs the modulation matrix |
 | Mod depth threshold | OTA bias ≈ 1.2 V above V−, depth through 22K: zero below ≈ 1.2 V. `$18` ≈ 0.95 V matches the manual's "inaudible below `$18`" | L + I | Needs the modulation matrix |
 | Filter capacitors | Layout shows 3 × 0.01 µF + **470 pF**, not 1000 pF | P | No effect: the cutoff law is calibrated, not built from the capacitors |
@@ -76,6 +76,12 @@ Sources used:
   so that unit holds another bank. The presenter notes audible steps in a cutoff sweep, as the 7-bit Fc gives.
 - retrosynth.com/gear/v8: board photos (VCF "REV 2", oscillator "REV D"; too small for values) and four Tony Clark
   samples (string, percussive string, percussive noise, split bass/bell), no settings.
+- Board photos: `Voyetra 8/v8_vcf_reva.jpg` is a **Rev A** VCF card with four LM13600 OTAs as the VCO level
+  VCAs (week 8151) instead of the SSM2024s of the schematic, 100K trimmers; retrosynth's "REV 2 vcf" has the 20K
+  Q CAL trimmers of the schematic. `v8_vco_revc.jpg` (Rev C VCO card): CEM3340 (week 8227), MC14520B, TL074/TL064,
+  CD4053. Resistor colours are not readable on any photo (light washes brown/red/orange together).
+- The mixer card redraw (`Voyetra 8/Mixer-Schematic.png`, J. Touzet 2006) is fully legible and settled the output
+  routing, panning and volume smoothing (§1).
 - **No published measurements** of a real unit (levels, sweeps, envelope times) were found.
 
 ## 5. Recording protocol for a real unit (when available)

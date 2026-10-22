@@ -148,18 +148,23 @@ output current-to-voltage converter. A current divider matches the level (MM §4
     **≈ 1 ms** smoothing (L). Model: `gain = max(0, v_ctl − 0.2 V)/(VFS − 0.2 V)` (SSM2024 threshold, D), with a
     one-pole on the control (τ 1 ms).
 - **Pair summers.** LF347, 100K ‖ 33 pF, voices (0,1), (2,3), (4,5), (6,7).
-- **Panning** (DG308 switched by `$6304` SPLIT, L/I):
-  - SPLIT/LAYER: voices 0–3 → one output, 4–7 → the other.
-  - WHOLE 8: pair (0,1) hard to one side, (6,7) to the other, (2,3) and (4,5) slightly off-centre through 150K/220K
-    weights (≈ 3.3 dB).
+- **Panning** (mixer card redraw by J. Touzet, `Voyetra 8/Mixer-Schematic.png`, L; MM §2.2):
+  - Pair (0,1) → R106 150K and pair (2,3) → R3 150K into the main VCA IC4A → IC5A → **RIGHT** jack; pair (4,5) →
+    R32 150K and pair (6,7) → R35 into IC4D → IC5B → **LEFT** jack (R35 is marked 100K "or 150K?").
+  - Four DG308 switches in two complementary pairs, driven by SPLIT/WHOLE 8 (`$6304`): pair (2,3) and pair (4,5)
+    each get a 220K path either to their own side (SPLIT/LAYER) or to the other side (WHOLE 8: R107 → RIGHT,
+    R33 → LEFT).
+  - So SPLIT/LAYER: voices 0–3 → RIGHT, 4–7 → LEFT (side 0, the RIGHT program, on the RIGHT jack). WHOLE 8: pair
+    (0,1) hard RIGHT, (6,7) hard LEFT, (2,3) and (4,5) 1 : 0.68 to their own / the other side.
+  - The channel gain trimmers are set for equal voice levels (MM §2.5), so the per-pair resistor differences are
+    trimmed out; the model uses 0.595 / 0.405 for the near-centre pairs (equal levels in SPLIT/LAYER).
 - **Output VCAs.** SSM2024 L/R controlled by program volume `$53`/`$57` × MASTER VOL (a panel pot; a plugin
   parameter here). Two stages: a control SSM2024 passes the MASTER VOL CV with VOL as its control, and drives the
-  main VCA's control (L). The VOL CV goes through a diode + 470 Ω into 2.2 µF and 10K to the control pin: it rises
-  in ≈ 1 ms and falls in ≈ 22 ms (L + I). The CPU divides the volume by 4 when no voice sounds (C). Model: the
-  SSM2024 threshold on VOL, asymmetric smoothing 1 ms up / 22 ms down.
-- Main VCA inputs: pair (0,1) through 100K, (2,3) 150K, (4,5)/(6,7) 220K via the DG308; 33K ‖ 33 pF current-to-
-  voltage; 100 Ω + 22 µF to the jack (L). The panning model below uses 150K/220K only; the full weight topology is
-  still to be checked.
+  main VCA's control (L). The VOL CV goes through 470 Ω + 1N4148 into 2.2 µF (C35/C36) and 18K (R21/R22) to the
+  control pin: it rises in ≈ 1 ms and falls in ≈ 40 ms (L). The CPU divides the volume by 4 when no voice sounds
+  (C). Model: the SSM2024 threshold on VOL, asymmetric smoothing 1 ms up / 40 ms down.
+- Main VCAs: 33K ‖ 33 pF current-to-voltage (IC5A/IC5B), 100 Ω, 22 µF, 10K to the jack bay; MONO = IC5D sum of both
+  (L).
 - **Noise.** MM5837 PRBS. Audio: per-side SSM2024 controlled by `$52`/`$56` → VCF cards (L → voices 0–3).
   Modulation: LM358 low-pass ≈ 130 Hz → "LF NOISE" (I).
 - **A440 tone.** PTM T3 O3 (439.95 Hz square, `$F1B2`) → 2N3904 → mix (MM §2.2).
