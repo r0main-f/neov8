@@ -29,6 +29,29 @@ impl Default for Ctl {
     fn default() -> Self { Ctl { ic1: 0, ic2: 0, ic3: 0, ic22: 0, ic23: 0, xpoint: [0; 256], ls670: [0; 8] } }
 }
 
+impl Ctl {
+    /// Apply a write to the control-latch area $6000-$67FF. `slot` = the S&H address at the time ($7F selects
+    /// IC22 for $64xx). Returns true when IC22 (the pot / tune mux address) changed.
+    pub fn apply(&mut self, a: u16, v: u8, slot: u8) -> bool {
+        let b = (a & 7) as u8;
+        let bit = |cur: u8| (cur & !(1 << b)) | (((v >> 7) & 1) << b);
+        let page = a >> 8;
+        match page {
+            0x61 => self.ic1 = bit(self.ic1),
+            0x62 => self.ic2 = bit(self.ic2),
+            0x63 => self.ic3 = bit(self.ic3),
+            0x64 if a & 0xf8 == 0 => {
+                if slot == 0x7f { self.ic22 = bit(self.ic22); return true; }
+                self.ic23 = bit(self.ic23);
+            }
+            0x65 => self.xpoint[(a & 0xff) as usize] = (v >> 7) & 1,
+            0x66 | 0x67 => self.ls670[((page - 0x66) * 4 + ((a >> 3) & 3)) as usize] = (v >> 4) & 0x0f,
+            _ => {}
+        }
+        false
+    }
+}
+
 /// An analog write, stamped with the CPU cycle count at the moment of the write.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AnalogEvent {
@@ -158,21 +181,7 @@ impl Machine {
 
 impl Hw {
     fn decode_ctl(&mut self, a: u16, v: u8) {
-        let b = (a & 7) as u8;
-        let bit = |cur: u8| (cur & !(1 << b)) | (((v >> 7) & 1) << b);
-        let page = a >> 8;
-        let c = &mut self.ctl;
-        match page {
-            0x61 => c.ic1 = bit(c.ic1),
-            0x62 => c.ic2 = bit(c.ic2),
-            0x63 => c.ic3 = bit(c.ic3),
-            0x64 if a & 0xf8 == 0 => {
-                if self.slot == 0x7f { c.ic22 = bit(c.ic22); self.mux_latch = c.ic22; } else { c.ic23 = bit(c.ic23); }
-            }
-            0x65 => c.xpoint[(a & 0xff) as usize] = (v >> 7) & 1,
-            0x66 | 0x67 => c.ls670[((page - 0x66) * 4 + ((a >> 3) & 3)) as usize] = (v >> 4) & 0x0f,
-            _ => {}
-        }
+        if self.ctl.apply(a, v, self.slot) { self.mux_latch = self.ctl.ic22; }
     }
 
     fn pot_panel(&mut self, n: u16, is_write: bool) -> u8 {

@@ -98,12 +98,28 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "v8-core",
  "v8-machine",
+]
+
+[[package]]
+name = "v8-core"
+version = "0.1.0"
+dependencies = [
+ "v8-machine",
+ "v8-voice",
 ]
 
 [[package]]
 name = "v8-machine"
 version = "0.1.0"
+
+[[package]]
+name = "v8-voice"
+version = "0.1.0"
+dependencies = [
+ "v8-machine",
+]
 
 [[package]]
 name = "zmij"

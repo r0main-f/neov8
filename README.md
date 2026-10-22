@@ -54,6 +54,8 @@ that runs the real ROMs (`v8-machine`, a behaviour-identical port of `sim/src/ma
 `sim/test/engine-diff.test.ts`) and, next, a model of the analog voice cards (`docs/audio-model.md`).
 Needs Rust (`brew install rustup && rustup default stable`, with `$(brew --prefix rustup)/bin` on the PATH):
 `npm run engine:build`, `npm run engine:test`.
+`engine/target/release/v8-cli render <script.json> <out.wav>` plays a scripted session (boot, AUTO TUNE, panel,
+notes, MIDI) on either ROM and writes the audio (first version of the voice model: no modulation matrix yet).
 
 ## License
 
