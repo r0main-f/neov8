@@ -28,6 +28,14 @@ Build: `npm run fw` (needs cc65 only), or take the four images from a GitHub rel
 NeoV8's own response curves (`tools/gen-curves.mjs`), no data of the original ROM. The parity tests
 (`npm test`) also use your stock ROM dump in `Voyetra 8 synths/` when it is there.
 
+**Exact stock response (personal build).** If you own a stock Rev4 ROM, `npm run fw:stock` builds NeoV8 with
+the original response curves extracted from your own dump (`Voyetra 8 synths/Voyetra8_rev4_CSR_ROMS.zip`)
+instead of NeoV8's: envelope times and velocity feel then match a stock unit exactly. The images land in
+`firmware/build-stock/` (same four file names). Keep them to yourself: they contain Octave-Plateau data.
+What differs between the two builds is listed in `sim/test/curves.test.ts`: envelopes within one DAC step,
+ADSR times within 1 % over the main range (up to ~30 % at a few extreme settings), tempo identical except
+6 settable BPMs, velocity curves and factory tapers redesigned.
+
 ## 3. Bring-up order (Phase 4 plan)
 1. "Hello" image: the splash `nEO 01`, every button shows its code, every knob its value — checks the 8279,
    the matrix, the ADC and the pot mux on your unit.
