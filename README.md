@@ -47,6 +47,14 @@ npm test           # scenarios + CPU + stock ROM + firmware tests (needs cc65: b
   curves (`tools/gen-curves.mjs`), so it builds without the stock ROM and can be shared (GitHub releases).
 * Phase 4 — bring-up on real hardware (`docs/burning.md`): not started
 
+## Sound engine (in progress)
+
+`engine/` is a Rust workspace for a native Voyetra Eight (plugin + standalone): an emulator of the CPU card
+that runs the real ROMs (`v8-machine`, a behaviour-identical port of `sim/src/machine`, checked by
+`sim/test/engine-diff.test.ts`) and, next, a model of the analog voice cards (`docs/audio-model.md`).
+Needs Rust (`brew install rustup && rustup default stable`, with `$(brew --prefix rustup)/bin` on the PATH):
+`npm run engine:build`, `npm run engine:test`.
+
 ## License
 
 Copyright (C) 2026 r0main-f and the NeoV8 contributors.
