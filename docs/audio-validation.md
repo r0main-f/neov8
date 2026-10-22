@@ -14,31 +14,31 @@ Sources used:
 
 ## 1. Settled and applied in the model
 
-| Item | Finding | Source |
-|---|---|---|
-| Sync | Hard sync on VCO2's **saw** reset (CEM3340 Figure 5 circuit, 470 pF), not soft sync, not the pulse | L + D |
-| Saw summing resistor | 56K, not 51K (saw gain 0.84) | P (layout) |
-| Envelope rates | The original ADSR rate table is used, so envelope timing matches a stock unit | C |
-
-## 2. Settled, not yet applied (next model changes)
-
-| Item | Finding | Confidence | Model change |
+| Item | Finding | Source | In the model |
 |---|---|---|---|
-| Pulse width | Pin 5 = (V_IPW + V_PWM)/2 through two 71.5K, 0.1 µF to ground: τ ≈ 3.6 ms. CEM3340: 0 → 5 V = 0 → 100 %. No third element; "+6 V = off" needs nothing else | L + D | duty from the average of the two CVs, 5 V span, 3.6 ms smoothing |
-| Linear FM | Pin 13 = reference current: 1M from +15 V (I_REF ≈ 15 µA); FM through 0.05 µF + 2M2. Δf/f ≈ v / 33 V, about ±14 % for a ±4.6 V VCO2 mix | L/P + D | `LIN_FM_DEPTH` ≈ 0.03 per volt (×1.5 if the 1M goes to +10 V, see §3) |
-| Pulse level | Inverter is a 2N3904 with 10K pull-up into 150K: ≈ 4.4 V p-p | P | `PULSE_VPP` / gain |
-| Triangle resistor | 22.1K 1 % (layout) instead of 22K | P | negligible |
-| SSM2024 VCAs | Linear, full scale ≈ 500 µA, turn fully off below ≈ 0.2 V of control | D | dead zone on VCO-level, voice and output VCAs |
-| SSM2044 cutoff | ≈ 18–19 mV/oct at pin 13; the filter collapses above ≈ +175 mV; the LM324 summers run on +8/−7 V, which bounds the range | D + MM | clamp the cutoff CV range |
-| SSM2044 resonance | Oscillation at ≈ 425 µA into pin 2; the curve is flat at the low end and steep near oscillation; passband gain drops as Q rises | D | replace `K_MAX`·q^`Q_CURVE` by a current-based law; add passband loss |
-| SSM2044 input | Clips around ±50 mV differential at the pins | D | tanh scale for `DRIVE_V` |
-| Cutoff CV | 0.01 µF across the summer U6: an extra ≈ 1 ms pole on the whole cutoff CV | P | one-pole on the cutoff CV |
-| Q circuit | Q mod gain ≈ −1.5, initial Q gain ≈ +2.5 (100K / 150K around U7) | P | Q mod scaling |
-| Filter capacitors | Layout shows 3 × 0.01 µF + **470 pF**, not 1000 pF | P | none (cutoff law is calibrated), check |
-| Mixer weights | Main VCA inputs: pair (0,1) 100K, (2,3) 150K, (4,5)/(6,7) 220K | L | check against the panning model (`PAN_NEAR`) |
-| Volume path | Two-stage: MASTER VOL × program VOL; volume CV rises in ≈ 1 ms (470 Ω × 2.2 µF), falls in ≈ 22 ms (10K) | L + I | smoothing on the output VCAs |
-| Mod depth threshold | OTA bias pin sits ≈ 1.2 V above V−, depth through 22K: zero current below ≈ 1.2 V. Depth `$18` ≈ 0.95 V on a 10.1 V mDAC, which matches the manual's "inaudible below `$18`" | L + I | physical origin for `D0` |
-| Output level | "as much as 2 Vpp" at full MASTER VOLUME; line level, 100 Ω, unbalanced | D (UM p124, Rev4 ref) | `OUT_GAIN` target |
+| Sync | Hard sync on VCO2's **saw** reset (CEM3340 Figure 5 circuit, 470 pF), not soft sync, not the pulse | L + D | VCO1 restarts at each VCO2 reset, band-limited |
+| Saw summing resistor | 56K, not 51K (saw gain 0.84) | P (layout) | `SAW_GAIN` |
+| Triangle resistor | 22.1K 1 % instead of 22K | P (layout) | `TRI_GAIN` |
+| Pulse level | 2N3904 inverter, 10K pull-up into 150K: ≈ 4.4 V p-p | P | `PULSE_VPP` |
+| Pulse width | Pin 5 = (V_IPW + V_PWM)/2 through two 71.5K, 0.1 µF to ground (τ ≈ 3.6 ms); 0 → 5 V = 0 → 100 %. No third element | L + D | `PW_SPAN` = 120 PA steps in both emulators (was 48), `PW_TAU` |
+| Linear FM | Pin 13 = reference current, 1M from +15 V; FM through 0.05 µF + 2M2: Δf/f ≈ v / 33 V | L/P + D | `LIN_FM_DEPTH` = 1/33 (was a guessed 0.05) |
+| SSM2024 VCAs | Linear, fully off below ≈ 0.2 V of control | D | threshold on the VCO-level, noise, voice and output VCAs |
+| Cutoff CV | 0.01 µF across the summer U6: ≈ 1 ms pole on the whole cutoff CV; range bounded by the ±8/−7 V summers | P + MM | `FC_TAU`, `FC_MIN`/`FC_MAX` |
+| Volume path | MASTER VOL × program VOL through two SSM2024s; VOL rises in ≈ 1 ms, falls in ≈ 22 ms | L + I | asymmetric smoothing |
+| Resonance | Oscillation at ≈ 425 µA; slow at the low end, fast near oscillation; passband loss with Q | D | already true of the linear-feedback ladder (DC gain 1/(1+k)); no change |
+| Filter input clip | ±50 mV at the SSM2044 input ≈ 2.7× one full-level VCO | D + I | consistent with `DRIVE_V` = 8; no change |
+| Envelope rates | The original ADSR rate table, so envelope timing matches a stock unit | C | firmware |
+
+## 2. Found, not applied yet
+
+| Item | Finding | Confidence | Why not yet |
+|---|---|---|---|
+| VCO2 input level | VCO2's level VCA control resistor reads 47K against 22K for VCO1: VCO2 would be ≈ half as loud at the same level | P | Would change every patch's balance; confirm on the board or by recording first |
+| Mixer weights | Main VCA inputs: pair (0,1) 100K, (2,3) 150K, (4,5)/(6,7) 220K via the DG308 | L | The switching topology per keyboard mode is not fully read |
+| Q modulation | Q mod gain ≈ −1.5, initial Q gain ≈ +2.5 (U7, 100K / 150K) | P | Needs the modulation matrix |
+| Mod depth threshold | OTA bias ≈ 1.2 V above V−, depth through 22K: zero below ≈ 1.2 V. `$18` ≈ 0.95 V matches the manual's "inaudible below `$18`" | L + I | Needs the modulation matrix |
+| Filter capacitors | Layout shows 3 × 0.01 µF + **470 pF**, not 1000 pF | P | No effect: the cutoff law is calibrated, not built from the capacitors |
+| Output level | "as much as 2 Vpp" at full MASTER VOLUME; line level, 100 Ω, unbalanced | D | Sets the digital reference level; decide with the plugin's gain staging |
 
 ## 3. Conflicts and unknowns (need a measurement)
 

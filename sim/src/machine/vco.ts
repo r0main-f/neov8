@@ -25,7 +25,9 @@ import type { GateEvent } from './ptm6840';
 /** E cycles of one period at the reference pitch: the stock offset target is 4 periods = $2343 cycles. */
 export const REF_PERIOD = 0x2343 / 4;
 export const TRIM_GAIN = 0.25;
-export const PW_SPAN = 48 * 128;
+/** PW slot units for 0 -> 100 % duty: pin 5 = average of the IPW and PWM CVs, 0 -> 5 V = 0 -> 100 % (CEM3340), so
+ *  10 V of summed CV = 120 PA steps (docs/audio-validation.md). Same value as engine/crates/v8-machine/src/vco.rs. */
+export const PW_SPAN = 120 * 128;
 
 export type VcoFault = 'dead' | 'unstable' | 'stuck' | 'noscale';
 

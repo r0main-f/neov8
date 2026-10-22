@@ -38,7 +38,8 @@ Oscillator `i` belongs to voice `v = i >> 1`. Odd `i` is VCO1 (slots 8v+4..7), e
 - `x = pitch slot / 128` (semitones).
 - `s = scale_i · (1 + 0.25 · (trim slot − 8192) / 8192)`.
 - `period = REF_PERIOD · 2^(−(s·x − tune_i)/12)` E cycles, with `REF_PERIOD = $2343/4`.
-- `duty = 0.5 + (PW slot − pw50_i) / (48·128)`, clamped. Duty 0 or 1 means no edges (`$7F` = pulse off).
+- `duty = 0.5 + (PW slot − pw50_i) / (120·128)`, clamped (pin 5 = average of the two PW CVs, 0–5 V = 0–100 %,
+  `docs/audio-validation.md`; it was 48·128 before October 2026). Duty 0 or 1 means no edges (`$7F` = pulse off).
 
 Slot values are the S&H levels (DAC × multiplier / 255). There is no droop and no settling time.
 

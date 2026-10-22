@@ -9,7 +9,10 @@ use crate::machine::Ctl;
 /// E cycles of one period at the reference pitch: the stock offset target is 4 periods = $2343 cycles.
 pub const REF_PERIOD: f64 = 0x2343 as f64 / 4.0;
 pub const TRIM_GAIN: f64 = 0.25;
-pub const PW_SPAN: f64 = 48.0 * 128.0;
+/// PW slot units for 0 -> 100 % duty: the IPW and PWM CVs reach CEM3340 pin 5 through two 71.5K (their average)
+/// and 0 -> 5 V there is 0 -> 100 % (datasheet), so 10 V of summed CV = 120 PA steps at 10.67 V full scale
+/// (docs/audio-validation.md). Same value as sim/src/machine/vco.ts.
+pub const PW_SPAN: f64 = 120.0 * 128.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum VcoFault { Dead, Unstable, Stuck, NoScale }
