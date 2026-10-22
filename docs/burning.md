@@ -40,8 +40,9 @@ ADSR times within 1 % over the main range (up to ~30 % at a few extreme settings
 6 settable BPMs, velocity curves and factory tapers redesigned.
 
 ## 3. Bring-up order (Phase 4 plan)
-1. "Hello" image: the splash `nEO 01`, every button shows its code, every knob its value — checks the 8279,
-   the matrix, the ADC and the pot mux on your unit.
+1. Power on: the display shows `nEO 0.8` (the firmware version) for 1.3 s, then the home view. SYSTEM menu
+   (A440+EDIT) items 91 button test, 92 pot test, 93 display test, 94 MIDI monitor, 95 tune report check the
+   8279, the matrix, the ADC and the pot mux on your unit.
 2. CV/latch test image: service menu exercisers (each slot, each latch) with a meter/scope on the voice cards.
 3. Full NeoV8. First run: AUTO TUNE, then compare factory/your patches with the stock ROM by ear (and with a
    recording of both).
