@@ -1,0 +1,8 @@
+[package]
+name = "v8-machine"
+description = "Voyetra Eight Rev4 CPU card emulator (6502, PIAs, PTM, ACIA, 8279, S&H) - port of sim/src/machine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]

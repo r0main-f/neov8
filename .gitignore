@@ -9,3 +9,6 @@ firmware/gen/
 
 # source material (copyrighted manuals, schematics, ROM dumps) - never committed
 Voyetra 8 synths/
+
+# Rust engine build output
+engine/target/
