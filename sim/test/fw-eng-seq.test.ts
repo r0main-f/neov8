@@ -236,7 +236,14 @@ describe.skipIf(!hasStock)('polysequencer', () => {
     const rel = cb2.map((l, k) => l.filter((c) => c > c0[k]).map((c) => c - c0[k]));
     const n = Math.min(rel[0].length, rel[1].length);
     expect(n).toBeGreaterThan(5);
-    for (let i = 0; i < n; i++) expect(Math.abs(rel[0][i] - rel[1][i]), `click ${i}`).toBeLessThan(2 * 4097); // (T1 started by each main loop: phases ~2 ms apart)
+    // The metronome timer is started by each main loop, so the two clicks' phase depends on where the loops happen
+    // to be: a few cycles of code anywhere move it by up to ~2 ticks either way (measured: -0.9 .. +2.2 ticks over
+    // firmware builds). Same tempo is the requirement: every click interval equal within one tick, phase within 3.
+    for (let i = 0; i < n; i++) expect(Math.abs(rel[0][i] - rel[1][i]), `click ${i} phase`).toBeLessThan(3 * 4097);
+    for (let i = 1; i < n; i++) {
+      const d = (rel[0][i] - rel[0][i - 1]) - (rel[1][i] - rel[1][i - 1]);
+      expect(Math.abs(d), `click interval ${i}`).toBeLessThan(4097);
+    }
   });
 
   it('REC + PLAY on one channel: the take plays back at STOP; LOOP + STOP stops at the end of the loop', () => {

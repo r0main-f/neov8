@@ -51,7 +51,7 @@ Confidence tags used on every fact:
 | `$6200–$6207` | CD4724 IC2 | same, RIGHT | C |
 | `$6300–$6307` | CD4724 IC3 | lin FM, autotune comparator select, split, LFO1 square, matrix control | C |
 | `$6400–$6407` | DIGIMOD CD4724 IC22 / IC23 | IC22 = pot-mux / tune-mux address (after `STA $307F`); IC23 = PB enable, Fc pedal, mod offset… (after `STA $3000`) | C/S p19 |
-| `$6500–$65FF` | ANA I CD22100 crosspoints | address = chip+crosspoint, D7 = on/off | C |
+| `$6500–$65FF` | ANA I CD22100 crosspoints | address = chip + crosspoint; the switch takes the level of `$6405` (IC23 Q5), not D7, and only while `$6307` = 0 | C/S p18 |
 | `$6600–$6618`, `$6700–$6718` | DIGIMOD 74LS670 ×2 (R/L) | mono-controller gates per bank (Fc pedal, +X, −X, pressure), word = A4:A3, data D4–D7 | C/S p19, p49 |
 | `$6800–$6803` | PIA#1 (6821) | PA0–6 out: DAC bits 13–7; **PA7 in: VCO-detect** (autotune); PB1–7 out: DAC bits 6–0; **PB0 in: pot comparator**; CA2/CB2 out; CA1 in (clock edge, polled) | C/S p21 |
 | `$6A00–$6A03` | PIA#2 (6821) | PA out: DAC1022 multiplier (8 bit); PB0–5 in: footswitches; PB6 in: cassette; PB7 unused; CA1 in: ext clock (IRQ); CB2 out: cassette out / arp pulse | C/S p21 |
@@ -266,14 +266,14 @@ Decode (**S** p21):
 | `$6302` / `$6303` | IC3 Q2/Q3 | /VCO2 SEL, /VCO1 SEL → autotune comparator mux (IC19). Odd osc → VCO1. | `$C04A`/`$C04F` | **C**/**S** |
 | `$6304` | IC3 Q4 | Split mode flag ("SPLIT"), from `$5C` | `$A47C` | **C**/**S** |
 | `$6305` / `$6306` | IC3 Q5/Q6 | LFO1 square L / R (sign of the LFO1 phase increment) → ANA I mod source "LFO1 SQUARE" | `$FE78` | **C** write, **I** meaning |
-| `$6307` | IC3 Q7 → ANA I | Crosspoint-matrix control: 0 while clearing/reprogramming `$65xx`, `$FF` after | `$E9FF` (0), `$EB25` (`$FF`), `$C6D7`/`$C715`, `$DAD7`/`$DAF7` | **C** usage, **I** meaning |
+| `$6307` | IC3 Q7 → ANA I "EN MAT" | /ENMAT: 0 = `$65xx` accesses strobe the crosspoints (CD4503 enabled), `$FF` = locked | `$E9FF` (0), `$EB25` (`$FF`), `$C6D7`/`$C715`, `$DAD7`/`$DAF7` | **C** + **S** p18/p21 |
 | `$6400`–`$6407` after `STA $307F` | DIGIMOD IC22 4724 Q0–Q6 = DA0–DA6 | Pot-mux address (pot channel from `$C009[$35]`). DA0–2 also go through a 4053 to VMA0–2 = VCO tune-mux voice select (autotune `$C05C`: voice = osc>>1). | `$C719`, `$E685`, `$C05E` | **C**/**S** p19 |
 | `$6400` / `$6401` after `STA $3000` | DIGIMOD IC23 Q0/Q1 | Pitch-bend enable L / R (PB DEFEAT L/R buttons; `$63`/`$64` toggles) | `$F19F`/`$F192`, `$F4DF`/`$F4E6`, `$F64C` | **C**/**S** "PBL/PBR enable" |
 | `$6404` | IC23 Q4 "AUDIO MUTE" | No individual write found | — | **I** unused by stock code? |
-| `$6405` | IC23 Q5 "Fc PED enable" (to ANA II) | From `$081E`/`$085E` bit (`$DB04`) | `$DB09`, `$C6D4`, `$DAD4` | **C** write, **S** label |
+| `$6405` | IC23 Q5 "Fc PED enable" (to ANA II) **and the DATA line of every ANA I crosspoint** (S p18: "D7 = Fc PED on/off" through a CD4503) | 0 while the matrix is cleared, `$FF` while it is programmed (`$DAE8`, `$C6E5`), then the Fc-pedal bit from `$081E`/`$085E` (`$DB04`) | `$DB09`, `$C6D4`, `$DAD4`, `$DAEA`, `$C6E7` | **C** + **S** |
 | `$6406` | IC23 Q6 "mod offset" (to ANA II) | 0 at boot (`$EB20`), `$FF` in autotune (`$C0A2`) | | **C**/**S** |
 | `$6407` | IC23 Q7 "ctrl add (to pot panel)" | ← `$0762` (MIDI-related setting) | `$9F85`, `$EA2E` | **C** write, **I** meaning |
-| `$6500`–`$65FF` | ANA I CD22100 crosspoints | Address byte = chip + crosspoint; D7 = close/open. Init `$C6CF` closes a default set (`$6500+4i`, `$6521+4i`, …, `$65F1+4i`). Programmed per mod bank by `$DB22` (controllers VEL/+X/−X/PRESS and invert). | `$C6DC`–`$C70F`, `$DADC`, `$DBC2`–`$DBDD` | **C** writes, **I** exact matrix |
+| `$6500`–`$65FF` | ANA I CD22100 crosspoints (14 chips) | A7–A4 → CD4514 → chip STROBE; A1–A0 = X input, A3–A2 = Y output. DATA = `$6405` level (not D7): the clear writes 0 everywhere with `$6405` = 0, the programming writes with `$6405` = `$FF` (whatever the data byte). Chips (addr >> 4): 0/9 mono sources (X0 DC +13.5 V, X1/X2 the LFOs, X3 LFO1 square), 1/A poly sources (VCO1, VCO2, ADSR1, ADSR2), 2/B controller chip (X0 velocity/kbd CV, X1 unity +12.5 V, X2 LF noise, X3 ADSR1), 3–6/C–F destinations of banks A–D (Y = VCO1, VCO2, Fc, Q; X0 bank "+", X2 bank "−", X1/X3 ground). Side 0 at `$00`, side 1 at `$90`. Init `$C6CF`: DC, unity, all destinations off. | `$C6DC`–`$C70F`, `$DADC`, `$DBC2`–`$DBDD` | **C** + **S** p18 (engine/crates/v8-voice/src/modmatrix.rs) |
 | `$6600`–`$6618` / `$6700`–`$6718` | DIGIMOD 74LS670 ×2 (R / L) | Word = A4:A3 (bank). D4–D7 drive 4066 switches that gate the **mono controllers** (Fc pedal, +X, −X, pressure) into the bank's controller input (S p49, MM §5.5); the sources themselves go through the CD22100 crosspoints. The ROM writes bits 6–4 of a table derived from bytes `$00`–`$03`, D7 = Fc pedal (bank word 0 ← byte `$04` bit 4). | `$DBE1` | **C** writes, **S** p19/p49 (gating), **I** exact bit ↔ controller map |
 | `$6800`–`$6803`, `$6A00`–`$6A03` | PIAs | see §1 and §3.2. CRs are shadowed at `$070C`–`$070F`. | `$E989`, `$A682` | **C** |
 | `$6C00`–`$6C07` | PTM | see §2.5 | | **C** |
@@ -505,5 +505,5 @@ All C (code); knob names follow Ref Guide normal page (R).
 | 6 | CD4724 data-line bit order for the DIGIMOD pot-mux latch. | pot mux addressing (copying the stock sequence `$E685` avoids the question) |
 | 7 | Slots `$47/$4F`, `$50`, `$55` exact destinations; `$51/$54` unused? | CV map completeness |
 | 8 | `$6404` "AUDIO MUTE" latch is never written; how does AUDIO MUTE act (code `$2B` → `$E01E`)? | mute implementation |
-| 9 | ANA I crosspoint matrix exact chip/crosspoint mapping (`$65xx`). | mod-bank engine parity — copy stock `$DB22` tables meanwhile |
+| 9 | ~~ANA I crosspoint matrix exact chip/crosspoint mapping (`$65xx`).~~ Settled (S p18, October 2026): see the `$6500` row. Open detail: the schematic wires source 1 to LFO2, the manual says Rev4-era units use 1 = LFO1. | — |
 

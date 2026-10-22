@@ -199,29 +199,38 @@ output current-to-voltage converter. A current divider matches the level (MM §4
   `$6307` = 0 (I).
 
 **Implemented model** (`engine/crates/v8-voice/src/modmatrix.rs`, `engine.rs`; constants in `calib.rs`):
-- **Routing decode.** Each bank's source, invert, destinations and controllers are read back from the data last
-  written to each crosspoint and LS670 word, following the write protocol of the stock ROM (which NeoV8 reproduces).
-  Verified against both ROMs: 48 random bank settings each, recalled from the panel, decode to the program bytes
-  (`engine/crates/v8-core/tests/modmatrix.rs`). The physical switch map stays open (docs/hardware.md item 9); the
-  decode does not depend on it.
-- **Sources** (volts):
-  - DC `MOD_DC_V` = 5 V (F).
-  - LFO1 = slot `$79` − slot `$78` (+4 per side). The ROM writes the waveform's centre to the offset slot, and both
+- **Crosspoints** (ANA I, S p18): 14 CD22100s whose common DATA line is the `$6405` latch ("Fc PED on/off"),
+  written only while `$6307` (/ENMAT) = 0. The ROM clears the matrix with `$6405` = 0, then sets `$6405` = `$FF` and
+  writes one address per switch to close (stock `$DAE8`, `$C6E5`). Switch map in docs/hardware.md (`$6500` row).
+  NeoV8 before v0.8.4 omitted the `$FF` write, so on hardware its matrix stayed open (no modulation); the emulators
+  had modelled DATA as D7 and could not see it.
+- **Routing decode** from the closed switches and the LS670 words: per bank the source, the invert (bank "+" or "−"
+  output into the inverting destination summer), destinations, and the controller inputs. Verified against both
+  ROMs: 48 random bank settings each, recalled from the panel (`engine/crates/v8-core/tests/modmatrix.rs`).
+- **Sources** (volts, around the mod system's +8 V pseudo-ground):
+  - DC `MOD_DC_V` = 5.5 V (+13.5 V, P).
+  - LFO1 = slot `$79` − slot `$78` (+4 per side): the ROM writes the waveform's centre to the offset slot, and both
     go through the delay-fade multiplier, so the difference fades in without a DC step (C, measured: triangle and
-    saw ≈ ±2.5 V, sine ≈ ±1.8 V).
+    saw ≈ ±2.5 V, sine ≈ ±1.8 V). ANA I mixes the two through 10K/10K (P); the exact gain is open.
   - LFO2 = slot `$7A` − `LFO2_REF`: the ROM adds a per-waveform offset that centres every waveform near 5888 (C).
-  - LFO1 square: latch `$6305`/`$6306` → 0 / `LFO1_SQ_V` (I).
-  - VCO1, VCO2: each oscillator's card output before the level VCA, per voice, at audio rate (UM p.44).
+  - Source codes 1/2: the ROM writes the program code straight to the switch; the schematic wires X1 = LFO2,
+    X2 = LFO1, but the user manual says units shipped from September 1983 use 1 = LFO1 (the model follows the
+    manual; open).
+  - LFO1 square: latch `$6305`/`$6306` → 0 / `LFO1_SQ_V` (I; the schematic suggests a 0/15 V CMOS level, i.e.
+    bipolar around the pseudo-ground: low confidence).
+  - VCO1 / VCO2: each oscillator's card output before the level VCA, per voice, at audio rate, tapped at 0.27 /
+    0.91 (27K/100K, 20K/22K, P); `$7B`/`$7F` centres the VCO1 tap.
   - ADSR1, ADSR2: the per-voice envelope DAC words before the mDAC (unscaled copies).
-- **Controllers**, 0..1, summed then clamped to 1 (UM p.57 "MIX"); none selected = 1 (UM p.63): velocity or
-  keyboard CV slot `$58+v` (the ROM applies the CV choice and the invert), joystick ±X, pressure, and the bank's
-  replacement (ADSR1 for A/B, LF noise ≈ 130 Hz for C, Fc pedal for D). The analog ones are engine parameters.
-- **Depth**: OTA current `max(0, V_depth − MOD_TH) / (VFS − MOD_TH)` with `MOD_TH` = 1.2 V, so `$18` (1.0 V) is
-  silent (UM p.64); times `MOD_GAIN` = 1 (F; the manual's vibrato depths `$25`–`$30` then give ≈ ±0.5–1 semitone).
-- **Destinations**: VCO1 / VCO2 pitch and Fc in octaves (1 V/oct, the Fc term inside the 1 ms summer pole); Q as
-  `q − Q_MOD_K · mod / VFS` (more negative = more resonance, UM p.69).
-- Not modelled yet: the VCO1 level compensation slot `$7B`/`$7F`, the poly scan's sample-and-hold, the Fc pedal's
-  direct path to the cutoff, and the hold of the previous routing while `$6307` = 0.
+- **Controllers**, summed into OTA1's bias (each input through 5.6K) and clamped to full scale: velocity or keyboard
+  CV slot `$58+v` (the ROM applies the CV choice and the invert), the unity input (closed when no controller is on),
+  LF noise (bank C), ADSR1 (banks A/B), and through the LS670 joystick ±X, pressure, Fc pedal (engine parameters).
+- **Depth**: OTA2 current `max(0, V_depth − MOD_TH) / (VFS − MOD_TH)` with `MOD_TH` = 1.2 V (2 Vbe, 22K), so `$18`
+  (1.0 V) is silent (UM p.64); times `MOD_GAIN` = 1 (F: the absolute scale is set by the ANA II gain trimmers).
+- **Destinations**: the destination summers (gain −2 per bank) feed the VCF card's multiplexed busses, divided by 2
+  for Fc and Q and by 3 for the VCOs, so per volt of bank output: Fc 1 octave, VCO 2/3 octave (`VCO_MOD_K`), Q
+  `−1.5 V` through U7 (`Q_MOD_K` = 0.6 of the Q CV scale; more negative = more resonance, UM p.69).
+- Not modelled yet: the poly scan's sample-and-hold (≈ 30–60 kHz per voice), the Fc pedal's direct path to the
+  cutoff, and the hold of the previous routing while the matrix is reprogrammed.
 
 ## 6. Calibration targets (MM)
 

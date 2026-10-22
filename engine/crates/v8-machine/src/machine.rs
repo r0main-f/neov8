@@ -19,7 +19,7 @@ pub struct Ctl {
     pub ic3: u8,
     pub ic22: u8,
     pub ic23: u8,
-    /// ANA I CD22100 crosspoint $65aa closed (D7)
+    /// ANA I CD22100 crosspoint $65aa closed (= $6405 at the last write while $6307 = 0)
     pub xpoint: [u8; 256],
     /// DIGIMOD 74LS670: [chip*4 + word] = D4-7
     pub ls670: [u8; 8],
@@ -44,7 +44,11 @@ impl Ctl {
                 if slot == 0x7f { self.ic22 = bit(self.ic22); return true; }
                 self.ic23 = bit(self.ic23);
             }
-            0x65 => self.xpoint[(a & 0xff) as usize] = (v >> 7) & 1,
+            // ANA I: the CD22100s' common DATA line is IC23 Q5 ($6405, "Fc PED on/off"), not D7; the strobe only
+            // reaches the chips while IC3 Q7 ($6307, /ENMAT) is 0 (S p18). The data byte is ignored.
+            0x65 => {
+                if self.ic3 & 0x80 == 0 { self.xpoint[(a & 0xff) as usize] = (self.ic23 >> 5) & 1; }
+            }
             0x66 | 0x67 => self.ls670[((page - 0x66) * 4 + ((a >> 3) & 3)) as usize] = (v >> 4) & 0x0f,
             _ => {}
         }

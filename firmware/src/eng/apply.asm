@@ -397,9 +397,11 @@ ap_bank_has_ctl:
         rts
 repl_bit:   .byte $80, $40, $20, $10
 
-; Crosspoints for the side: per bank, the 4 destinations (VCO1, VCO2, Fc, Q) each close one switch:
-; $6530 + bank*16 + side*$90 + dest*4 + (inverted ? 2 : 0) + (dest off ? 1 : 0); plus the velocity-replacement
-; switches of $6520/$6521 (only effective on the LEFT matrix half, as in the original wiring).
+; Crosspoints for the side: one source switch per bank (mono X0-X3 DC, LFO2, LFO1, LFO1 square at side*$90 +
+; bank*4; poly VCO1, VCO2, ADSR1, ADSR2 at +$10), the controller switches (ap_xpt_repl), and per destination
+; (VCO1, VCO2, Fc, Q) one switch: $6530 + bank*16 + side*$90 + dest*4 + (not inverted ? 2 : 0) + (dest off ? 1 : 0)
+; (x0 = bank VCA "+" output, x2 = "−" output into the inverting destination summer, x1/x3 = ground).
+; Every write closes its switch (ap_modhw); the data written is whatever is in A, as in the stock code.
 ap_xpt:
         lda en_side
         beq @s0
@@ -433,7 +435,7 @@ ap_xpt:
         ora en_ptr
         tax
         txa
-        sta $6500,x                 ; data = the address byte: D7 = 1 only in the LEFT half
+        sta $6500,x                 ; closes the source switch (the data is not used)
         lda en_t0                   ; destinations: bank A,B -> byte $04, C,D -> byte $05; A/C high nibble
         lsr
         php
@@ -481,11 +483,10 @@ ap_xpt:
         bpl @bank
         rts
 
-; Controller switches of bank en_t0 (en_t2 = bank*4 + side offset). A0 = active controllers << 4
-; (bit 7 velocity, 6 +X, 5 -X, 4 pressure). Velocity replacement on (byte $1E bit 7-4 = 0): banks A-C close their
-; replacement switch $6520 + {3,3,2} + en_t2 (written with its address: D7 = side); bank D (pedal) is enabled by $6405.
-; The velocity switch $6520 + en_t2 closes when the velocity controller is active (except when A-C are replaced);
-; with replacement off and no controller at all, $6521 + en_t2 is opened.
+; Controller switches of bank en_t0 (en_t2 = bank*4 + side offset), CD22100 "VEL" chip: X0 velocity, X1 unity
+; (+12.5 V), X2 LF noise, X3 ADSR1 CTRL. A0 = active controllers << 4 (bit 7 velocity, 6 +X, 5 -X, 4 pressure).
+; Replacement on (byte $1E bit 7-4 = 0): banks A, B close X3, bank C closes X2; bank D's pedal comes in through the
+; LS670 (D7). Otherwise X0 closes when the velocity controller is on, and X1 (unity) when no controller is on.
 ap_xpt_repl:
         ldy en_t0
         lda (en_mbuf),y
@@ -512,12 +513,12 @@ ap_xpt_repl:
 @off:   lda en_t3
         bne @vel
         ldx en_t2
-        sta $6521,x                 ; A = 0: open
+        sta $6521,x                 ; X1 unity: closes (no controller at all)
 @vel:   lda en_t3
         and #$80
         beq @r
         ldx en_t2
-        sta $6520,x                 ; A = $80: close
+        sta $6520,x                 ; X0 velocity: closes
 @r:     rts
 repl_ofs:   .byte 3, 3, 2
 
@@ -563,6 +564,8 @@ ap_ls670:
         rts
 
 ; Whole mod hardware: VCAs muted, matrix cleared, both sides programmed, Fc-pedal enable. DAC locked by caller.
+; Crosspoint writes ($65xx, only while $6307 = 0) store the level of $6405 (IC23 Q5) in the addressed CD22100
+; switch: 0 = open (the clear), $FF = close (the programming). The data byte itself is ignored.
 ap_modhw:
         jsr ap_vca_mute
         jsr ap_vca_mute
@@ -575,6 +578,8 @@ ap_modhw:
         dex
         bne @clr
         sta $6500
+        lda #$ff                    ; the crosspoints' DATA line is IC23 Q5 ($6405), not D7 (ANA I S p18: "D7 = Fc PED
+        sta LATCH_MUX+5             ; on/off" through a 4503): from here every $65xx write closes its switch (stock $DAE8)
         ldx #0
         jsr @side
         ldx #1

@@ -72,8 +72,15 @@ pub const PAN_NEAR: f64 = 150.0 / (150.0 + 220.0);
 pub const OUT_GAIN: f64 = 0.06;
 
 // ---------------------------------------------------------------- Modulation banks (ANA I/II, audio-model.md §5)
-/// DC source level (F)
-pub const MOD_DC_V: f64 = 5.0;
+/// DC source: +13.5 V against the mod system's +8 V pseudo-ground (ANA I, partly legible) (P)
+pub const MOD_DC_V: f64 = 5.5;
+/// VCO taps into the poly source mux: VCO1 through 27K/100K (−0.27, with `$7B`/`$7F` centring it), VCO2 −0.91
+/// (20K/22K) (ANA I, partly legible); the sign does not matter for an audio-rate source (P)
+pub const VCO1_SRC_GAIN: f64 = 0.27;
+pub const VCO2_SRC_GAIN: f64 = 0.91;
+/// destination summers (−2 per bank) feed the VCF card's mod busses, divided by 2 for Fc and Q and by 3 for
+/// VCO1/VCO2 (1K/1K, 2K/1K 1 %): at equal weight, VCO modulation is 2/3 of Fc modulation (L/P)
+pub const VCO_MOD_K: f64 = 2.0 / 3.0;
 /// LFO2: the ROM adds a per-waveform offset so that every waveform centres near this slot level (measured on both
 /// ROMs: triangle/saw 5888, sine 5700); ANA I subtracts it. LFO1's centre is its own offset slot ($78/$7C) (C + I)
 pub const LFO2_REF: f64 = 5888.0;
