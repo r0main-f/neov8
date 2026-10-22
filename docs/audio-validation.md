@@ -54,6 +54,7 @@ Sources used:
 | 8 | VCO1 bypass level (1K / 680 divider, partly legible) | `BYPASS_GAIN` | Recording with bypass on and off, same patch |
 | 9 | PWM extremes: does high depth thin the pulse out to silence? (UM p44 says yes) | Pulse/PWM patches | Recording of a PWM sweep at depths 4, 8, 15 |
 | 10 | Mod gain `G` and threshold `D0` | All modulation depths | Vibrato recordings at depths `$18`, `$30`, `$60`, `$C0` |
+| 12 | Does the SSM2024 threshold cut release tails? The model turns a voice off ≈ 30 dB below sustain (0.2 V); Tony Clark's samples (retrosynth.com) fade smoothly over 40+ dB, but may carry reverb | Release tails, quiet passages | Single notes with a long release, dry, scope on the voice VCA control |
 | 11 | Which early-board variant: the Rev A VCF photo shows LM13600 where the schematic has SSM2024 | Which VCA law applies to which revision | Photo of the user's VCF card |
 
 ## 4. Reference audio and patch data
@@ -73,6 +74,8 @@ Sources used:
 - The Doctor Mix demo (YouTube `QrGLSp1WzzY`, UVI's unit) steps through stored steps 10, 14, 18, 19 and 26
   (programs L33/R09, R59, L72/R00, L22/R38, R11 on the display); none matches the steps of the four decoded tapes,
   so that unit holds another bank. The presenter notes audible steps in a cutoff sweep, as the 7-bit Fc gives.
+- retrosynth.com/gear/v8: board photos (VCF "REV 2", oscillator "REV D"; too small for values) and four Tony Clark
+  samples (string, percussive string, percussive noise, split bass/bell), no settings.
 - **No published measurements** of a real unit (levels, sweeps, envelope times) were found.
 
 ## 5. Recording protocol for a real unit (when available)
