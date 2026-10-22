@@ -1,5 +1,7 @@
 # Voyetra Eight Rev4 — hardware reference for firmware writers
 
+The analog voice path (VCO, VCF, mixer and modulation cards as sound) is in `docs/audio-model.md`.
+
 Derived from the stock Rev4 ROM (V8600040–043; disassembly in `tools/disasm`, labels in `tools/disasm/ann/*.info`) and the schematics (`Voyetra 8 synths/Voyetra 8 Schematics.pdf`, page numbers = PDF pages).
 
 Confidence tags used on every fact:
@@ -50,7 +52,7 @@ Confidence tags used on every fact:
 | `$6300–$6307` | CD4724 IC3 | lin FM, autotune comparator select, split, LFO1 square, matrix control | C |
 | `$6400–$6407` | DIGIMOD CD4724 IC22 / IC23 | IC22 = pot-mux / tune-mux address (after `STA $307F`); IC23 = PB enable, Fc pedal, mod offset… (after `STA $3000`) | C/S p19 |
 | `$6500–$65FF` | ANA I CD22100 crosspoints | address = chip+crosspoint, D7 = on/off | C |
-| `$6600–$6618`, `$6700–$6718` | DIGIMOD 74LS670 ×2 (R/L) | mod-source routing, word = A4:A3, data D4–D7 | C/S p19 |
+| `$6600–$6618`, `$6700–$6718` | DIGIMOD 74LS670 ×2 (R/L) | mono-controller gates per bank (Fc pedal, +X, −X, pressure), word = A4:A3, data D4–D7 | C/S p19, p49 |
 | `$6800–$6803` | PIA#1 (6821) | PA0–6 out: DAC bits 13–7; **PA7 in: VCO-detect** (autotune); PB1–7 out: DAC bits 6–0; **PB0 in: pot comparator**; CA2/CB2 out; CA1 in (clock edge, polled) | C/S p21 |
 | `$6A00–$6A03` | PIA#2 (6821) | PA out: DAC1022 multiplier (8 bit); PB0–5 in: footswitches; PB6 in: cassette; PB7 unused; CA1 in: ext clock (IRQ); CB2 out: cassette out / arp pulse | C/S p21 |
 | `$6C00–$6C07` | 6840 PTM | `$6C00` CR1/CR3, `$6C01` CR2 (W)/status (R), `$6C02/3` T1, `$6C04/5` T2, `$6C06/7` T3 (MSB buffer at even address, write LSB to transfer) | C |
@@ -176,7 +178,7 @@ Code side:
 | `$44` / `$4C` | 8 / 9 | 4 | VCO1 volume L / R (byte `$10`) | `$DA4A` | static |
 | `$45` / `$4D` | 8 / 9 | 5 | VCO2 volume (byte `$11`) | `$DA4A` | static |
 | `$46` / `$4E` | 8 / 9 | 6 | VCF Q (byte `$12`) | `$DA4A` | static |
-| `$47` / `$4F` | 8 / 9 | 7 | Unknown. 0 V at boot (mDAC = 0, `$EA59`); `$FF` during autotune (`$C0A5`). Diagram says "INIT Q / VCF OFFS". | boot, autotune | **I** |
+| `$47` / `$4F` | 8 / 9 | 7 | No audible effect: 0 V at boot (mDAC = 0, `$EA59`); `$FF` during autotune (`$C0A5`). Diagram says "INIT Q / VCF OFFS", but Q is channel 6 and MM §4.2 lists no CPU Fc offset (initial Fc is a trimmer); channel 7 looks unused (S p39). | boot, autotune | **I** |
 | `$50` | 10 | 0 | Keyboard gate CV (0 / `$7F`) | `$EC3D`; `$F6F0` clears it | **I** (diagram says NC) |
 | `$51`, `$54` | 10 | 1, 4 | Never written apart from 0 (refreshed as 0) | — | **I** unused |
 | `$52` / `$56` | 10 | 2 / 6 | Noise volume L / R (byte `$0C`) | `$DAAF` | static |
@@ -184,8 +186,8 @@ Code side:
 | `$55` | 10 | 5 | Keyboard CV, last note (`$78`) | `$EC68` | **I** |
 | `$58`–`$5F` | 11 | 0–7 | Velocity per voice (or keyboard CV, per byte `$23` bit 7; invert per byte `$24`) | `$EEC1` note-on | 7-bit static |
 | `$60`–`$63` / `$64`–`$67` | 12 | 0–3 / 4–7 | Mod depth banks A–D, L / R (bytes `$06`–`$09`) | `$DDF6` | 8-bit (PA = val>>1, PB bit 7 = LSB) |
-| `$68`–`$6F` | 13 | v | ADSR2 → VCA. mDAC = `$07E0+v` (velocity) OR `$90+side` (`$FF` if VCA velocity is off, byte `$1C`). | `$8A00`, `$A61B` | 14-bit × mDAC |
-| `$70`–`$77` | 14 | v | ADSR1 → VCF. mDAC = `$92+side` = byte `$14`×2. | `$8A00`, `$A61B` | 14-bit × mDAC |
+| `$68`–`$6F` | 13 | v | ADSR2 → voice VCA, **on the Mixer card** (SSM2024, ≈ 1 ms control smoothing). mDAC = `$07E0+v` (velocity) OR `$90+side` (`$FF` if VCA velocity is off, byte `$1C`). The same strobe loads ANA I's **unscaled** ADSR2 mod-source copy (level-shifted DAC, before the mDAC; S p2, p47). | `$8A00`, `$A61B` | 14-bit × mDAC |
+| `$70`–`$77` | 14 | v | ADSR1 → VCF cutoff summer (100K, same 1 V/oct weight as the Fc CV; 22K/0.1 µF ≈ 2.2 ms RC). mDAC = `$92+side` = byte `$14`×2. The same strobe loads DIGIMOD's **unscaled** ADSR1 mod-source copy. | `$8A00`, `$A61B` | 14-bit × mDAC |
 | `$78` / `$7C` | 15 | 0 / 4 | LFO1 DC offset L / R (depends on waveform: `$1A`/`$20`) | `$FE25` | static |
 | `$79` / `$7D` | 15 | 1 / 5 | LFO1 L / R. mDAC = `$0578` (delay fade-in). | `$FD77`/`$FE25` | × mDAC |
 | `$7A` / `$7E` | 15 | 2 / 6 | LFO2 L / R (value + offset `$0E`/`$12`) | `$FE50` | 14-bit |
@@ -258,7 +260,7 @@ Decode (**S** p21):
 
 | Address | Device / bit | Meaning | Written by | Conf. |
 |---|---|---|---|---|
-| `$6100`–`$6107` | IC1 4724 → VCOs LEFT, Q0–Q7 | = program bytes `$14`–`$1B` bit 7: Q0 VCO1 sub-oct, Q1 VCO1 triangle, Q2 VCO1 saw, Q3 sync, Q4 VCO2 sub-oct, Q5 VCO2 triangle, Q6 VCO2 saw, Q7 VCF bypass ("BYP (VCF)"). Active low per the SysEx doc. | `$DEF3` (program), `$C2C7` (all `$FF`), `$C17F` (autotune: Q2/Q6 = 0) | **C** + **S** (glyphs for tri/saw ambiguous; the code order is authoritative) |
+| `$6100`–`$6107` | IC1 4724 → VCOs LEFT, Q0–Q7 | = program bytes `$14`–`$1B` bit 7: Q0 VCO1 sub-oct, Q1 VCO1 triangle, Q2 VCO1 saw, Q3 sync, Q4 VCO2 sub-oct, Q5 VCO2 triangle, Q6 VCO2 saw, Q7 VCF bypass ("BYP (VCF)"), **per side** (VCO1 of all 4 voices; MC14551 on the VCF card). Active low per the SysEx doc. | `$DEF3` (program), `$C2C7` (all `$FF`), `$C17F` (autotune: Q2/Q6 = 0) | **C** + **S** (glyphs for tri/saw ambiguous; the code order is authoritative) |
 | `$6200`–`$6207` | IC2 4724 → VCOs RIGHT | same, right side | same | **C** |
 | `$6300` / `$6301` | IC3 Q0/Q1 | Linear FM L / R (byte `$22` bit 7) | `$DF48`; `$C080` (autotune `$FF`) | **C**/**S** "LIN FM L,R" |
 | `$6302` / `$6303` | IC3 Q2/Q3 | /VCO2 SEL, /VCO1 SEL → autotune comparator mux (IC19). Odd osc → VCO1. | `$C04A`/`$C04F` | **C**/**S** |
@@ -272,7 +274,7 @@ Decode (**S** p21):
 | `$6406` | IC23 Q6 "mod offset" (to ANA II) | 0 at boot (`$EB20`), `$FF` in autotune (`$C0A2`) | | **C**/**S** |
 | `$6407` | IC23 Q7 "ctrl add (to pot panel)" | ← `$0762` (MIDI-related setting) | `$9F85`, `$EA2E` | **C** write, **I** meaning |
 | `$6500`–`$65FF` | ANA I CD22100 crosspoints | Address byte = chip + crosspoint; D7 = close/open. Init `$C6CF` closes a default set (`$6500+4i`, `$6521+4i`, …, `$65F1+4i`). Programmed per mod bank by `$DB22` (controllers VEL/+X/−X/PRESS and invert). | `$C6DC`–`$C70F`, `$DADC`, `$DBC2`–`$DBDD` | **C** writes, **I** exact matrix |
-| `$6600`–`$6618` / `$6700`–`$6718` | DIGIMOD 74LS670 ×2 (R / L) | Word = A4:A3 (bank). D4–D6 = mod source select (bytes `$00`–`$03` bits 6–4, inverted). D7 = extra flag (bank word 0 ← byte `$04` bit 4). | `$DBE1` | **C** writes, **S** p19 (A3/A4, D4–D7), **I** bit meaning |
+| `$6600`–`$6618` / `$6700`–`$6718` | DIGIMOD 74LS670 ×2 (R / L) | Word = A4:A3 (bank). D4–D7 drive 4066 switches that gate the **mono controllers** (Fc pedal, +X, −X, pressure) into the bank's controller input (S p49, MM §5.5); the sources themselves go through the CD22100 crosspoints. The ROM writes bits 6–4 of a table derived from bytes `$00`–`$03`, D7 = Fc pedal (bank word 0 ← byte `$04` bit 4). | `$DBE1` | **C** writes, **S** p19/p49 (gating), **I** exact bit ↔ controller map |
 | `$6800`–`$6803`, `$6A00`–`$6A03` | PIAs | see §1 and §3.2. CRs are shadowed at `$070C`–`$070F`. | `$E989`, `$A682` | **C** |
 | `$6C00`–`$6C07` | PTM | see §2.5 | | **C** |
 | `$6D00`–`$6DFF` | PTM mirror | cleared at boot (`$EA1C`) | | **S**/**C** |
