@@ -70,3 +70,23 @@ pub const VOL_FALL_TAU: f64 = 18.0e3 * 2.2e-6;
 pub const PAN_NEAR: f64 = 150.0 / (150.0 + 220.0);
 /// overall output scaling to digital full scale (one saw voice, filter open, full volume ≈ -12 dBFS)
 pub const OUT_GAIN: f64 = 0.06;
+
+// ---------------------------------------------------------------- Modulation banks (ANA I/II, audio-model.md §5)
+/// DC source level (F)
+pub const MOD_DC_V: f64 = 5.0;
+/// LFO2: the ROM adds a per-waveform offset so that every waveform centres near this slot level (measured on both
+/// ROMs: triangle/saw 5888, sine 5700); ANA I subtracts it. LFO1's centre is its own offset slot ($78/$7C) (C + I)
+pub const LFO2_REF: f64 = 5888.0;
+/// LFO1 square: unipolar, high while the LFO1 phase rises (latch $6305/$6306) (I)
+pub const LFO1_SQ_V: f64 = 4.5;
+/// depth OTA bias: about 2 Vbe above V−, depth through 22K, so depth CVs below ≈ 1.2 V give nothing: depth $18
+/// (1.0 V) is just under it, as the manual says ("not strong enough to matter until it reaches 18") (L + I)
+pub const MOD_TH: f64 = 1.2;
+/// bank output volts per source volt at full controller and full depth (1 V = 1 octave at VCO and Fc). With it, the
+/// manual's vibrato settings ($25-$30, LFO1 ≈ ±2.5 V, a half-way controller) give ≈ ±0.5-1 semitone (F)
+pub const MOD_GAIN: f64 = 1.0;
+/// Q modulation: U7 takes Q mod through 100K against ≈ 150K feedback and the initial Q at gain ≈ 2.5, and more
+/// negative mod gives more resonance (UM p.69): q_eff = q − Q_MOD_K · mod / VFS (P)
+pub const Q_MOD_K: f64 = 0.6;
+/// LF noise (bank C replacement controller): the noise low-passed at ≈ 130 Hz (I)
+pub const LF_NOISE_HZ: f64 = 130.0;

@@ -198,6 +198,31 @@ output current-to-voltage converter. A current divider matches the level (MM §4
 - `$6307` = 0 while the matrix is reprogrammed: probably inhibits it. Model: hold the previous routing while
   `$6307` = 0 (I).
 
+**Implemented model** (`engine/crates/v8-voice/src/modmatrix.rs`, `engine.rs`; constants in `calib.rs`):
+- **Routing decode.** Each bank's source, invert, destinations and controllers are read back from the data last
+  written to each crosspoint and LS670 word, following the write protocol of the stock ROM (which NeoV8 reproduces).
+  Verified against both ROMs: 48 random bank settings each, recalled from the panel, decode to the program bytes
+  (`engine/crates/v8-core/tests/modmatrix.rs`). The physical switch map stays open (docs/hardware.md item 9); the
+  decode does not depend on it.
+- **Sources** (volts):
+  - DC `MOD_DC_V` = 5 V (F).
+  - LFO1 = slot `$79` − slot `$78` (+4 per side). The ROM writes the waveform's centre to the offset slot, and both
+    go through the delay-fade multiplier, so the difference fades in without a DC step (C, measured: triangle and
+    saw ≈ ±2.5 V, sine ≈ ±1.8 V).
+  - LFO2 = slot `$7A` − `LFO2_REF`: the ROM adds a per-waveform offset that centres every waveform near 5888 (C).
+  - LFO1 square: latch `$6305`/`$6306` → 0 / `LFO1_SQ_V` (I).
+  - VCO1, VCO2: each oscillator's card output before the level VCA, per voice, at audio rate (UM p.44).
+  - ADSR1, ADSR2: the per-voice envelope DAC words before the mDAC (unscaled copies).
+- **Controllers**, 0..1, summed then clamped to 1 (UM p.57 "MIX"); none selected = 1 (UM p.63): velocity or
+  keyboard CV slot `$58+v` (the ROM applies the CV choice and the invert), joystick ±X, pressure, and the bank's
+  replacement (ADSR1 for A/B, LF noise ≈ 130 Hz for C, Fc pedal for D). The analog ones are engine parameters.
+- **Depth**: OTA current `max(0, V_depth − MOD_TH) / (VFS − MOD_TH)` with `MOD_TH` = 1.2 V, so `$18` (1.0 V) is
+  silent (UM p.64); times `MOD_GAIN` = 1 (F; the manual's vibrato depths `$25`–`$30` then give ≈ ±0.5–1 semitone).
+- **Destinations**: VCO1 / VCO2 pitch and Fc in octaves (1 V/oct, the Fc term inside the 1 ms summer pole); Q as
+  `q − Q_MOD_K · mod / VFS` (more negative = more resonance, UM p.69).
+- Not modelled yet: the VCO1 level compensation slot `$7B`/`$7F`, the poly scan's sample-and-hold, the Fc pedal's
+  direct path to the cutoff, and the hold of the previous routing while `$6307` = 0.
+
 ## 6. Calibration targets (MM)
 
 | Target | Value |
