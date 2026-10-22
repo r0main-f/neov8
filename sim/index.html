@@ -41,6 +41,33 @@
           <span class="hint">emulated machine only</span>
         </div>
         <div id="status">Click buttons, drag knobs (up/down; Shift = fine), right-click a button to latch it (for chords).</div>
+        <details id="backup" class="help">
+          <summary>Backup / restore your Voyetra (SysEx over MIDI)</summary>
+          <p class="note">Saves the 100 programs and 100 steps to a <code>.syx</code> file, and writes them back. Do this
+            with the stock ROM before putting NeoV8 in (docs/burning.md). Connect both MIDI cables (the Voyetra's OUT
+            to your interface's IN, and its IN to the interface's OUT), and turn SysEx on: stock Rev4 <b>MX</b> (MIDI MISC,
+            Alternate page = A440+STEP ENABLE), NeoV8 menu <b>16 rS</b>. For a restore, also turn <b>memory protect</b> off.</p>
+          <div class="bk-row">
+            <label>Instrument
+              <select id="bk-target">
+                <option value="midi" selected>Voyetra on MIDI</option>
+                <option value="sim">This simulator (Machine back ends)</option>
+              </select>
+            </label>
+            <button id="bk-connect">Connect MIDI</button>
+            <label>In <select id="bk-in"></select></label>
+            <label>Out <select id="bk-out"></select></label>
+          </div>
+          <div class="bk-row">
+            <label class="chk"><input type="checkbox" id="bk-steps" checked /> include the 100 steps</label>
+            <button id="bk-backup">Back up</button>
+            <a id="bk-save" class="bk-save" hidden>Save backup (.syx)</a>
+            <button id="bk-restore">Restore from .syx…</button>
+            <input type="file" id="bk-file" accept=".syx" hidden />
+          </div>
+          <progress id="bk-progress" hidden></progress>
+          <div id="bk-status" class="bk-status">A full backup takes about 15 s, a restore about 45 s (it reads everything back to check it).</div>
+        </details>
         <details class="help" open>
           <summary>Quick reference</summary>
           <div class="cols">

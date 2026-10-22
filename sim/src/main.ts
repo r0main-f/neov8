@@ -5,6 +5,7 @@ import { MachineBackend } from './machine/backend';
 import { Panel } from './panel/panel';
 import { Keyboard } from './panel/keyboard';
 import { Inspector } from './panel/inspector';
+import { BackupUi } from './panel/backup-ui';
 import { overlayFor } from './panel/overlays';
 import { defaultGlobals, type Globals, type Perf } from './proto/state';
 import type { Backend, ButtonId } from './types';
@@ -111,12 +112,17 @@ document.querySelectorAll<HTMLButtonElement>('#footsw button').forEach((btn) => 
   btn.addEventListener('mouseleave', () => btn.classList.contains('down') && set(false));
 });
 
+// Backup / restore section (Web MIDI or this simulator); while it talks to the simulator it gets the MIDI output
+let backupTap: ((bytes: number[]) => void) | null = null;
+new BackupUi($('backup'), () => backend, (t) => (backupTap = t));
+
 // SysEx coming out of the instrument -> offer a .syx download
 let outBuf: number[] = [];
 let inSysex = false;
 let quietFrames = 0;
 function pumpMidiOut() {
   const b = backend.drainMidiOut();
+  if (backupTap) { if (b.length) backupTap(b); return; }
   for (const x of b) {
     if (x === 0xf0) inSysex = true;
     if (inSysex) outBuf.push(x);
@@ -173,4 +179,5 @@ function loop(t: number) {
 requestAnimationFrame(loop);
 
 // handy in the browser console
-Object.assign(window as unknown as Record<string, unknown>, { proto, panel, get backend() { return backend; } });
+Object.assign(window as unknown as Record<string, unknown>, { proto, panel });
+Object.defineProperty(window, 'backend', { get: () => backend }); // live (Object.assign would copy the first value)

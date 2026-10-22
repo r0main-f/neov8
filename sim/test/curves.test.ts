@@ -8,7 +8,7 @@ import { TABLES } from '../../tools/extract-tables.mjs';
 import { ROOT, hasStock, loadStockRom, buildFirmware, loadNeoRomFrom } from './helpers';
 
 const BUILD = 'build-curves';
-const ours = Object.fromEntries((CURVES as [string, number[], string][]).map(([l, d]) => [l, d]));
+const ours = Object.fromEntries(CURVES.map(([l, d]) => [l, d]));
 let stock: Record<string, number[]> = {};
 let neo: Uint8Array;
 
@@ -17,7 +17,7 @@ beforeAll(() => {
   neo = loadNeoRomFrom(BUILD);
   if (hasStock) {
     const rom = loadStockRom();
-    stock = Object.fromEntries((TABLES as [string, number, number][]).map(([l, a, n]) => [l, [...rom.subarray(a - 0x8000, a - 0x8000 + n)]]));
+    stock = Object.fromEntries(TABLES.map(([l, a, n]) => [l, [...rom.subarray(a - 0x8000, a - 0x8000 + n)]]));
   }
 }, 120_000);
 
@@ -26,7 +26,7 @@ const adsr = (t: Record<string, number[]>) => t.tb_adsr_rate_hi.map((h, i) => h 
 
 describe('NeoV8 response curves', () => {
   it('every table has the stock size and shape constraints (monotonic where the law is)', () => {
-    for (const [l, , n] of TABLES as [string, number, number][]) expect(ours[l]?.length, l).toBe(n);
+    for (const [l, , n] of TABLES) expect(ours[l]?.length, l).toBe(n);
     const e = env16(ours);
     for (let x = 1; x < 1024; x++) expect(e[x]).toBeGreaterThanOrEqual(e[x - 1]);
     expect(e[1023]).toBe(32760);
@@ -88,7 +88,7 @@ describe.skipIf(!hasStock)('NeoV8 curves vs the stock tables (how close they are
 
 it('curves.inc is up to date with tools/gen-curves.mjs', () => {
   const inc = readFileSync(join(ROOT, 'firmware/src/eng/curves.inc'), 'utf8');
-  for (const [l, d] of CURVES as [string, number[], string][]) {
+  for (const [l, d] of CURVES) {
     const m = new RegExp(`${l}:\\n((?:\\s+\\.byte [^\\n]+\\n)+)`).exec(inc);
     expect(m, l).not.toBeNull();
     const bytes = m![1].match(/\$[0-9a-f]{2}/g)!.map((h) => parseInt(h.slice(1), 16));
