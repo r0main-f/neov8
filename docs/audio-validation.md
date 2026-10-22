@@ -44,7 +44,7 @@ Sources used:
 
 | # | Question | Why it matters | How to settle it |
 |---|---|---|---|
-| 1 | Absolute pitch: does a tuned unit play A = 440 Hz or ≈ 443 Hz? (the firmware reference is 886.2 Hz at 2 MHz) | Tuning against other instruments | Tuner on A4 after AUTO TUNE |
+| 1 | Absolute pitch: the firmware reference is 886.2 Hz at 2 MHz (≈ 443 Hz), but the Samples From Mars multisamples of a calibrated unit sit at A440 +1…+2 cents (EnvelopeSaw, SyncLite, 49 notes each). Likely the front-panel MASTER TUNE sets it (a plugin parameter); samples may also have been retuned | Tuning against other instruments | Tuner on A4 after AUTO TUNE, MASTER TUNE centred and at both ends |
 | 2 | DAC full scale: 10.00 V (ICL7134 with the 10.00 V reference) or 10.67 V (schematic annotation "−10.67 V") | Every CV-to-volts conversion (`VFS`) | Voltmeter on the DAC output with a full-scale word (test program) |
 | 3 | Linear FM reference: 1M to +15 V (scan label) or to the +10 V reference (MM §3.4) | FM depth (×1.5) | Read the board, or measure pin 13 voltage |
 | 4 | Cutoff calibration point (`FC_REF_STEP`) | Absolute filter brightness of every patch | Self-oscillation frequency at maximum Q for a few Fc values |
@@ -80,6 +80,12 @@ Sources used:
   VCAs (week 8151) instead of the SSM2024s of the schematic, 100K trimmers; retrosynth's "REV 2 vcf" has the 20K
   Q CAL trimmers of the schematic. `v8_vco_revc.jpg` (Rev C VCO card): CEM3340 (week 8227), MC14520B, TL074/TL064,
   CD4053. Resistor colours are not readable on any photo (light washes brown/red/orange together).
+- **Samples From Mars, free pack** (`Recordings/SamplesFromMars/wav`, 874 files): ten multisampled patches
+  (EnvelopeSaw, SyncLite/SyncMod, PWMEnvelopeLFO, LayeredHorns, ...), every semitone, 24-bit, no settings and no
+  single-oscillator waveforms (those are in the paid pack). Used for absolute pitch (§3 #1).
+- User manual pp. 74–75 (also as `V8 Audio Chain Schematic.pdf`, `V8 Mod Bankl Schematics.pdf`): voice and mod-bank
+  block diagrams. VCO sources to the mod banks and linear FM are taken before the level VCAs; a bank's selected
+  controllers are summed before its gain VCA.
 - The mixer card redraw (`Voyetra 8/Mixer-Schematic.png`, J. Touzet 2006) is fully legible and settled the output
   routing, panning and volume smoothing (§1).
 - **No published measurements** of a real unit (levels, sweeps, envelope times) were found.
