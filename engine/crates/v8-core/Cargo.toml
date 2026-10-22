@@ -1,0 +1,10 @@
+[package]
+name = "v8-core"
+description = "A Voyetra Eight: the CPU-card emulator and the voice model running together, sample-accurate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+v8-machine = { path = "../v8-machine" }
+v8-voice = { path = "../v8-voice" }

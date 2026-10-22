@@ -228,4 +228,9 @@ Accuracy on the model (12 seeds, wide spreads ±4 semitones / ±6 % scale / ±6 
 3. **6840 gate semantics** (counter held while the gate is high, in continuous mode): modelled from the datasheet as I remember it. The stock's "two equal readings" logic needs it. **Check the datasheet.**
 4. **S&H droop and VCO settling** are not modelled. NeoV8 rewrites the 4 slots of the oscillator before every reading, like the stock.
 5. **Isolation.** The stock also resets the crosspoint matrix, sets slots `$47/$4F` to `$FF` and writes `$6405`/`$6307`. NeoV8 only zeroes slots `$40–$7F` (mod depths, LFOs, envelopes → 0 V) and sets `$6406`. If a real unit shows modulation leaking into the VCOs during the tune, add the crosspoint reset.
+7. **Empty calibration table (stock).** On the VCO model, the stock AUTO TUNE gives up on every oscillator when
+   the battery calibration table is all zero (failed mask `$FF`, all voices disabled, so the instrument is
+   silent); with plausible start values (`$30`/`$40`/`$F8`) it converges in ~15 s. NeoV8's tune recovers from a
+   zero table. A real unit only sees a zero table after a battery loss; whether the real chips behave like the
+   model there is unverified.
 6. The stock never skips voices. NeoV8 also tunes voices disabled in `PF_VOICEMASK`, so they are in tune if re-enabled.

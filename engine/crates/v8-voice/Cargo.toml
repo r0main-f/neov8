@@ -1,0 +1,9 @@
+[package]
+name = "v8-voice"
+description = "Model of the Voyetra Eight analog voice path (VCO, VCF, VCA, mixer) driven by the S&H CVs - docs/audio-model.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+v8-machine = { path = "../v8-machine" }

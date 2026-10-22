@@ -3,6 +3,9 @@
 //! `v8-cli trace <script.json>`: runs a scripted session on the Rust machine and prints its state at every
 //! `check` step plus every analog event, as JSON. `sim/test/engine-diff.test.ts` runs the same script on the
 //! TypeScript machine and requires identical output (the port must be behaviour-identical).
+//!
+//! `v8-cli render <script.json> <out.wav> [sample_rate]`: the same script on the full instrument (emulator +
+//! voice model); every `run` step produces audio. Writes a 32-bit float stereo WAV.
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -23,6 +26,8 @@ struct Script {
 #[serde(tag = "op", rename_all = "lowercase")]
 enum Step {
     Run { cycles: u64 },
+    /// render mode: run without producing audio (boot, autotune); trace mode: same as run
+    Skip { cycles: u64 },
     /// raw 8279 FIFO byte (bit 6 = 1 when A440 is up)
     Key { fifo: u8 },
     Note { note: u8, down: bool, #[serde(default = "default_vel")] vel: u8 },
@@ -78,7 +83,7 @@ fn trace(path: &str) -> Result<Value, String> {
     let mut checks = Vec::new();
     for s in &script.steps {
         match s {
-            Step::Run { cycles } => m.run(*cycles),
+            Step::Run { cycles } | Step::Skip { cycles } => m.run(*cycles),
             Step::Key { fifo } => m.hw.kd.press_key(*fifo),
             Step::Note { note, down, vel } => { if *down { m.key_down(*note, *vel) } else { m.key_up(*note) } }
             Step::Midi { bytes } => m.hw.acia.receive(bytes),
@@ -99,6 +104,67 @@ fn trace(path: &str) -> Result<Value, String> {
     Ok(json!({ "checks": checks, "events": events }))
 }
 
+fn write_wav(path: &str, sr: u32, l: &[f32], r: &[f32]) -> std::io::Result<()> {
+    let n = l.len();
+    let data = (n * 8) as u32;
+    let mut b = Vec::with_capacity(44 + data as usize);
+    b.extend_from_slice(b"RIFF");
+    b.extend_from_slice(&(36 + data).to_le_bytes());
+    b.extend_from_slice(b"WAVEfmt ");
+    b.extend_from_slice(&16u32.to_le_bytes());
+    b.extend_from_slice(&3u16.to_le_bytes()); // IEEE float
+    b.extend_from_slice(&2u16.to_le_bytes());
+    b.extend_from_slice(&sr.to_le_bytes());
+    b.extend_from_slice(&(sr * 8).to_le_bytes());
+    b.extend_from_slice(&8u16.to_le_bytes());
+    b.extend_from_slice(&32u16.to_le_bytes());
+    b.extend_from_slice(b"data");
+    b.extend_from_slice(&data.to_le_bytes());
+    for i in 0..n {
+        b.extend_from_slice(&l[i].to_le_bytes());
+        b.extend_from_slice(&r[i].to_le_bytes());
+    }
+    std::fs::write(path, b)
+}
+
+fn render(path: &str, out: &str, sr: u32) -> Result<(usize, f32), String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+    let script: Script = serde_json::from_str(&text).map_err(|e| format!("{path}: {e}"))?;
+    let rom = std::fs::read(&script.rom).map_err(|e| format!("{}: {e}", script.rom))?;
+    let bram = match &script.bram { Some(b) => Some(std::fs::read(b).map_err(|e| format!("{b}: {e}"))?), None => None };
+    let mut inst = v8_core::Instrument::new(&rom, bram.as_deref(), sr as f64, script.vco_seed.unwrap_or(1));
+    let (mut l, mut r) = (Vec::new(), Vec::new());
+    let mut owed = 0.0f64; // fractional samples carried between run steps
+    for s in &script.steps {
+        match s {
+            Step::Run { cycles } => {
+                owed += *cycles as f64 * sr as f64 / 2_000_000.0;
+                let n = owed.floor() as usize;
+                owed -= n as f64;
+                let at = l.len();
+                l.resize(at + n, 0.0);
+                r.resize(at + n, 0.0);
+                inst.render(&mut l[at..], &mut r[at..]);
+            }
+            Step::Skip { cycles } => inst.skip((*cycles as f64 * sr as f64 / 2_000_000.0) as u64),
+            Step::Key { fifo } => inst.panel_key(*fifo),
+            Step::Note { note, down, vel } => inst.key(*note, *down, *vel),
+            Step::Midi { bytes } => inst.midi_in(bytes),
+            Step::Pot { ch, value } => inst.pot(*ch, *value),
+            Step::Fsw { n, closed } => {
+                let p = &mut inst.machine.hw.pia2;
+                p.in_b = if *closed { p.in_b & !(1 << n) } else { p.in_b | (1 << n) };
+            }
+            Step::Vpk { fwd, rev } => { inst.machine.hw.vpk_fwd = *fwd; inst.machine.hw.vpk_rev = *rev; }
+            Step::Protect { on } => inst.machine.hw.mem_protect = *on,
+            Step::Check => {}
+        }
+    }
+    let peak = l.iter().chain(r.iter()).fold(0.0f32, |m, x| m.max(x.abs()));
+    write_wav(out, sr, &l, &r).map_err(|e| format!("{out}: {e}"))?;
+    Ok((l.len(), peak))
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
@@ -106,8 +172,15 @@ fn main() {
             Ok(v) => println!("{v}"),
             Err(e) => { eprintln!("v8-cli trace: {e}"); std::process::exit(1); }
         },
+        Some("render") if args.len() >= 4 => {
+            let sr = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(48_000);
+            match render(&args[2], &args[3], sr) {
+                Ok((n, peak)) => eprintln!("v8-cli render: {} s, peak {:.3} -> {}", n as f64 / sr as f64, peak, args[3]),
+                Err(e) => { eprintln!("v8-cli render: {e}"); std::process::exit(1); }
+            }
+        }
         _ => {
-            eprintln!("usage: v8-cli trace <script.json>");
+            eprintln!("usage: v8-cli trace <script.json> | v8-cli render <script.json> <out.wav> [sample_rate]");
             std::process::exit(2);
         }
     }
