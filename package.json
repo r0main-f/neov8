@@ -11,7 +11,8 @@
     "test": "npm run gen && npm run fw && vitest run",
     "typecheck": "npm run gen && tsc --noEmit -p sim",
     "roms": "node tools/rom/extract-roms.mjs",
-    "fw": "node tools/gen-font.mjs && node tools/gen-ui-tables.mjs && node tools/gen-curves.mjs && make -C firmware"
+    "fw": "node tools/gen-font.mjs && node tools/gen-ui-tables.mjs && node tools/gen-curves.mjs && make -C firmware",
+    "fw:stock": "npm run roms && node tools/gen-font.mjs && node tools/gen-ui-tables.mjs && node tools/extract-tables.mjs && make -C firmware BUILD=build-stock DEFS=\"-D STOCK_TABLES\""
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
