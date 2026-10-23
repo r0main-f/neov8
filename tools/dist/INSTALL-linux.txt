@@ -1,8 +1,8 @@
-NeoV8 for Linux (x86-64)
-========================
+NeoV8 for Linux (x86-64; glibc 2.35 or later: Ubuntu 22.04, Debian 12, Fedora 36 and newer)
+=============================================================================================
 
-Uses the system's usual desktop libraries: ALSA (libasound2), OpenGL, X11/xcb and GTK 3 (file dialog). JACK is
-optional. Nothing else to install.
+Uses only the usual desktop libraries: ALSA (libasound2), OpenGL, X11/xcb and the Wayland client library. JACK is
+used when installed. LOAD BANK opens the desktop's file chooser (xdg-desktop-portal). Nothing else to install.
 
 App:     ./neov8   (ALSA by default, which also works through PipeWire; ./neov8 --backend jack for JACK;
          ./neov8 --help for every option).

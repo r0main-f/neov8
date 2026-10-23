@@ -80,6 +80,11 @@ Needs Rust (`brew install rustup && rustup default stable`; the npm scripts find
   starts like the app's first start. Notes on MIDI channel 1 reach the RIGHT side (both sides in LAYER and WHOLE 8),
   channel 2 the LEFT side. MASTER volume / tune, joystick X, pressure and Fc pedal are automatable. The bundles are
   ad-hoc signed for this Mac only (no notarisation); AU (Logic) is not built.
+* **Windows and Linux:** the CI workflow (`.github/workflows/build.yml`) builds the app and both plugins for Linux
+  (x86-64), Windows (64-bit) and macOS (universal) on every push; each run's artifacts hold `NeoV8-linux.tar.gz`,
+  `NeoV8-windows.zip` and `NeoV8-macos.zip` with install notes (`tools/dist/`). Nothing else needs installing:
+  the firmware is built in. The app uses WASAPI on Windows and ALSA on Linux (`--backend jack` for JACK), and keeps
+  its battery RAM in `%APPDATA%\NeoV8` or `~/.local/share/neov8`. No sound bank ships with it (LOAD BANK).
 * **CPU:** one instrument (emulated CPU + 8 voices) takes about 2 % of one core silent and 3.6 % with 8 notes held
   (Apple Silicon; `cargo run --release -p v8-core --example cpu`). The panel redraws only when a display, LED or
   parameter changes, or on input, thanks to small patches to two GUI crates (`engine/vendor/*/NEOV8.md`); with
