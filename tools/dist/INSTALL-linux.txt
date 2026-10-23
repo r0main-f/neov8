@@ -10,8 +10,10 @@ App:     ./neov8   (ALSA by default, which also works through PipeWire; ./neov8 
          and neov8.png to ~/.local/share/icons/hicolor/256x256/apps/.
 Plugins: copy NeoV8.clap to ~/.clap/ and NeoV8.vst3 (the whole folder) to ~/.vst3/, then rescan in your DAW.
 
-No sound bank is included: the instrument starts with an init bank. Load your own with LOAD BANK (SysEx .syx,
-cassette recording .wav, or 8 KB battery image .bin). Your programs are kept in ~/.local/share/neov8/battery.bin
+The Octave-Plateau factory bank (cassette B2: 100 programs, 100 steps) is built in and loaded on the first start.
+It is also here as voyetra-factory-b2.syx: LOAD BANK reloads it, and any SysEx tool can send it to a real Voyetra
+Eight (see banks/README.md in the source). LOAD BANK also takes other banks (SysEx .syx, cassette recording .wav,
+8 KB battery image .bin). Your programs are kept in ~/.local/share/neov8/battery.bin
 (the app) or in the DAW project (the plugin).
 
 NeoV8 is free software (GPL-3.0-or-later): https://github.com/r0main-f/neov8

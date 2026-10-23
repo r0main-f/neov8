@@ -27,6 +27,33 @@ impl Bank {
         s
     }
 
+    /// The bank as Rev4 SysEx (docs/midi-implementation.md §5.1), with the controller flag set so a Voyetra (stock or
+    /// NeoV8, SysEx on) stores it: program dumps (cmd 1), step dumps (cmd 2), then the taper / footswitch block
+    /// (cmd 22). Byte-compatible with the stock ROM's own dumps.
+    pub fn to_syx(&self) -> Vec<u8> {
+        let nib = |out: &mut Vec<u8>, b: &[u8]| out.extend(b.iter().flat_map(|v| [v & 0x0f, v >> 4]));
+        let mut out = Vec::new();
+        for (n, p) in &self.programs {
+            out.extend([0xf0, 0x03, 0x41, 0x00, *n as u8]);
+            nib(&mut out, p);
+            nib(&mut out, &[0x80, 0x80, 0xff, 0xff, 0xff]);
+            out.push(0xf7);
+        }
+        for (n, st) in &self.steps {
+            out.extend([0xf0, 0x03, 0x42, 0x00, *n as u8]);
+            nib(&mut out, st);
+            nib(&mut out, &[0x80; 6]);
+            out.push(0xf7);
+        }
+        if let Some(t) = &self.tail {
+            out.extend([0xf0, 0x03, 0x56]);
+            let rev: Vec<u8> = t.iter().rev().copied().collect(); // the first byte goes to $5A58
+            nib(&mut out, &rev);
+            out.push(0xf7);
+        }
+        out
+    }
+
     pub fn is_empty(&self) -> bool {
         self.image.is_none() && self.programs.is_empty() && self.steps.is_empty() && self.tail.is_none() && self.globals.is_none()
     }
@@ -288,13 +315,17 @@ mod tests {
         assert_eq!(&bram[0x1000 + 24 * 7..0x1000 + 24 * 8], &step);
     }
 
-    /// The user's factory tape, when it is in the repository folder (not distributed).
+    /// The factory bank built into the instrument: 100 programs, 100 steps and the taper / footswitch block, and the
+    /// same bytes as the cassette it was decoded from when that recording is in the repository folder.
     #[test]
-    fn factory_tape_decodes_when_present() {
-        let p = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../Voyetra 8 synths/voyetra-8_v8factorytapeB2.wav");
-        let Ok(bank) = load(std::path::Path::new(p)) else { return };
+    fn factory_bank_is_complete_and_matches_the_tape() {
+        let bank = parse_syx(crate::FACTORY_BANK);
         assert_eq!(bank.programs.len(), 100);
         assert_eq!(bank.steps.len(), 100);
         assert_eq!(bank.tail.map(|t| t[56]), Some(0xa5));
+        assert_eq!(bank.to_syx(), crate::FACTORY_BANK, "round trip");
+        let p = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../Voyetra 8 synths/voyetra-8_v8factorytapeB2.wav");
+        let Ok(tape) = load(std::path::Path::new(p)) else { return };
+        assert_eq!(tape.to_syx(), crate::FACTORY_BANK, "decoded tape");
     }
 }

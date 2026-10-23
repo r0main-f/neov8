@@ -96,6 +96,7 @@ jobs:
           mkdir -p "$D"
           cp -R engine/target/bundled/NeoV8.clap engine/target/bundled/NeoV8.vst3 "$D"/
           cp LICENSE "$D"/LICENSE.txt
+          cp banks/voyetra-factory-b2.syx "$D"/
           cp tools/dist/INSTALL-${{ matrix.name }}.txt "$D"/INSTALL.txt
           case "${{ matrix.name }}" in
             linux)

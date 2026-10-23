@@ -34,7 +34,9 @@ pub static STANDALONE: AtomicBool = AtomicBool::new(false);
 pub static START_BANK: Mutex<Option<PathBuf>> = Mutex::new(None);
 /// The factory cassette recording in the repository's (not distributed) reference folder: loaded on a first start
 /// when it is there.
-pub const FACTORY_TAPE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../Voyetra 8 synths/voyetra-8_v8factorytapeB2.wav");
+/// The Octave-Plateau factory bank (tape B2: 100 programs, 100 steps, tapers / footswitches) as Rev4 SysEx, loaded on
+/// a first start (banks/README.md: third-party data, not under NeoV8's licence)
+pub static FACTORY_BANK: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../banks/voyetra-factory-b2.syx"));
 
 pub enum Cmd {
     /// 8279 FIFO byte (bit 6 = 1 when A440 is up)
@@ -322,11 +324,12 @@ impl Plugin for NeoV8 {
         let mut msg = String::new();
         if !have {
             bram = default_bram();
-            if let Ok(b) = bank::load(std::path::Path::new(FACTORY_TAPE)) {
-                b.apply(&mut bram);
-                msg = format!("first start: factory tape loaded ({})", b.summary());
-            } else {
+            let b = bank::parse_syx(FACTORY_BANK);
+            if b.is_empty() {
                 msg = "first start: init bank (load a bank with LOAD BANK)".into();
+            } else {
+                b.apply(&mut bram);
+                msg = format!("first start: factory bank loaded ({})", b.summary());
             }
         }
         if let Some(p) = START_BANK.lock().ok().and_then(|mut s| s.take()) {

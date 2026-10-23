@@ -11,8 +11,10 @@ These builds are not notarised by Apple. The first time, right-click NeoV8.app a
 System Settings > Privacy & Security). For the plugins, if your DAW refuses them, run in Terminal:
     xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/CLAP/NeoV8.clap ~/Library/Audio/Plug-Ins/VST3/NeoV8.vst3
 
-No sound bank is included: the instrument starts with an init bank. Load your own with LOAD BANK (SysEx .syx,
-cassette recording .wav, or 8 KB battery image .bin). Your programs are kept in
+The Octave-Plateau factory bank (cassette B2: 100 programs, 100 steps) is built in and loaded on the first start.
+It is also here as voyetra-factory-b2.syx: LOAD BANK reloads it, and any SysEx tool can send it to a real Voyetra
+Eight (see banks/README.md in the source). LOAD BANK also takes other banks (SysEx .syx, cassette recording .wav,
+8 KB battery image .bin). Your programs are kept in
 ~/Library/Application Support/NeoV8/battery.bin (the app) or in the DAW project (the plugin).
 
 NeoV8 is free software (GPL-3.0-or-later): https://github.com/r0main-f/neov8
