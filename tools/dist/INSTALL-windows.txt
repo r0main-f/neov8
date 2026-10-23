@@ -11,8 +11,10 @@ Plugins: copy NeoV8.vst3 (the whole folder) to C:\Program Files\Common Files\VST
 The app uses WASAPI and the first MIDI input it finds; run NeoV8.exe --help from a terminal for the options
 (e.g. --midi-input "name", --output-device "name").
 
-No sound bank is included: the instrument starts with an init bank. Load your own with LOAD BANK (SysEx .syx,
-cassette recording .wav, or 8 KB battery image .bin). Your programs are kept in %APPDATA%\NeoV8\battery.bin (the
+The Octave-Plateau factory bank (cassette B2: 100 programs, 100 steps) is built in and loaded on the first start.
+It is also here as voyetra-factory-b2.syx: LOAD BANK reloads it, and any SysEx tool can send it to a real Voyetra
+Eight (see banks/README.md in the source). LOAD BANK also takes other banks (SysEx .syx, cassette recording .wav,
+8 KB battery image .bin). Your programs are kept in %APPDATA%\NeoV8\battery.bin (the
 app) or in the DAW project (the plugin).
 
 NeoV8 is free software (GPL-3.0-or-later): https://github.com/r0main-f/neov8

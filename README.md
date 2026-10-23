@@ -31,6 +31,7 @@ npm test           # scenarios + CPU + stock ROM + firmware tests (needs cc65: b
 | `sim/` | Vite + TypeScript simulator: `panel/` (SVG panel, keyboard, inspector), `proto/` (NeoV8 prototype), `machine/` (6502 + chip emulation) |
 | `tools/` | generators and ROM tooling |
 | `firmware/` | ca65 sources; `make -C firmware` -> `build/neov8.bin` + 4 EPROM images |
+| `banks/` | the Octave-Plateau factory bank as SysEx (third-party data, `banks/README.md`) |
 | `Voyetra 8 synths/` | source material: manuals, schematics, ROM dumps (not redistributable) |
 
 ## Status
@@ -70,8 +71,8 @@ Needs Rust (`brew install rustup && rustup default stable`; the npm scripts find
 * **Sound banks:** LOAD BANK (below the panel) or `npm run app -- --bank <file>` loads a SysEx dump (`.syx`,
   Rev4 / NeoV8 program and step dumps), a cassette recording (`.wav`, decoded like the ROM's tape reader) or an
   8 KB battery image (`.bin`), then power-cycles the instrument; the tuning is kept. On a first start (fresh
-  battery RAM) the app loads the factory cassette recording from `Voyetra 8 synths/` when it is there (not
-  distributed), otherwise an init bank, and runs AUTO TUNE. Programs, steps and tuning are kept in
+  battery RAM) the app loads the built-in factory bank (`banks/voyetra-factory-b2.syx`, decoded from factory
+  cassette B2; also sendable to a real Voyetra) and runs AUTO TUNE. Programs, steps and tuning are kept in
   `~/Library/Application Support/NeoV8/battery.bin` (delete it to start fresh).
 * **Plugin (CLAP, VST3):** `npm run plugin` builds `NeoV8.clap` and `NeoV8.vst3` (nih-plug's bundler,
   `cd engine && cargo xtask bundle v8-plugin --release`, output in `engine/target/bundled/`) and installs them in
@@ -84,7 +85,7 @@ Needs Rust (`brew install rustup && rustup default stable`; the npm scripts find
   (x86-64), Windows (64-bit) and macOS (universal) on every push; each run's artifacts hold `NeoV8-linux.tar.gz`,
   `NeoV8-windows.zip` and `NeoV8-macos.zip` with install notes (`tools/dist/`). Nothing else needs installing:
   the firmware is built in. The app uses WASAPI on Windows and ALSA on Linux (`--backend jack` for JACK), and keeps
-  its battery RAM in `%APPDATA%\NeoV8` or `~/.local/share/neov8`. No sound bank ships with it (LOAD BANK).
+  its battery RAM in `%APPDATA%\NeoV8` or `~/.local/share/neov8`. The factory bank is built in, and ships as a `.syx` file too.
 * **CPU:** one instrument (emulated CPU + 8 voices) takes about 2 % of one core silent and 3.6 % with 8 notes held
   (Apple Silicon; `cargo run --release -p v8-core --example cpu`). The panel redraws only when a display, LED or
   parameter changes, or on input, thanks to small patches to two GUI crates (`engine/vendor/*/NEOV8.md`); with
@@ -108,6 +109,7 @@ instrument this firmware is for. The original Rev4 firmware, manuals and ROM dum
 repository and are not covered by these licenses: the release ROM images use NeoV8's own response curves
 (`tools/gen-curves.mjs`), with one exception: the 128-entry ADSR rate table (256 bytes) is copied from the
 original Rev4 ROM so envelope times match a stock unit. It is a table of numbers that sets envelope speeds,
-kept here for interoperability with existing patches; it is excluded from the licenses above. `npm run fw:stock` builds a personal image from your own stock ROM dump, which you
+kept here for interoperability with existing patches; it is excluded from the licenses above. The factory sound bank in `banks/` is Octave-Plateau's data, included as is
+and also excluded from these licenses (`banks/README.md`). `npm run fw:stock` builds a personal image from your own stock ROM dump, which you
 must not distribute.
 
