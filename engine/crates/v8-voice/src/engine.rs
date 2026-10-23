@@ -108,6 +108,11 @@ pub struct Engine {
     pub joystick_x: f64,
     pub pressure: f64,
     pub fc_pedal: f64,
+    /// VPK-5 joystick Y (−1..1, + = away from the player = pitch up) and its PITCH BEND RANGE UP / DOWN trimmers
+    /// (semitones at full deflection)
+    pub joystick_y: f64,
+    pub bend_up: f64,
+    pub bend_down: f64,
     /// decoded banks per side, their signed depth gain (invert, depth OTA, MOD_GAIN) and the mono sources per side
     /// (DC, LFO1, LFO2, LFO1 square, volts)
     banks: [[Bank; 4]; 2],
@@ -149,6 +154,9 @@ impl Engine {
             joystick_x: 0.0,
             pressure: 0.0,
             fc_pedal: 0.0,
+            joystick_y: 0.0,
+            bend_up: 2.0,
+            bend_down: 2.0,
             banks: [[Bank::default(); 4]; 2],
             depth: [[0.0; 4]; 2],
             mono: [[0.0; 4]; 2],
@@ -243,6 +251,21 @@ impl Engine {
         let fs = self.sr;
         let fc_max = FC_MAX.min(0.45 * fs);
         let tune = (self.master_tune / 12.0).exp2();
+        // controllers: the VPK-5's analog ones plus the MIDI-controller CV bank (docs/midi-implementation.md §3)
+        let st = &self.state;
+        let midi = |i: usize| st.level(0x80 + i) / MIDI_CV_FULL;
+        let (px, nx) = ((self.joystick_x.max(0.0) + midi(1)).min(1.0), ((-self.joystick_x).max(0.0) + midi(0)).min(1.0));
+        let pressure = (self.pressure + midi(3)).min(1.0);
+        let pedal = (self.fc_pedal + midi(2)).min(1.0);
+        // pitch bend per side (side 0 = the RIGHT program: MIDI CV 6; side 1: CV 4), on both VCOs through the
+        // summing node, unless PITCH BEND DEFEAT clears the side's enable (IC23 Q0 side 0, Q1 side 1; C, measured)
+        let joy = if self.joystick_y >= 0.0 { self.joystick_y * self.bend_up } else { self.joystick_y * self.bend_down };
+        let side_tune: [f64; 2] = std::array::from_fn(|side| {
+            let cv = 0x80 + if side == 0 { 6 } else { 4 };
+            let midi_bend = (st.cv[cv] as f64 - MIDI_BEND_CENTRE) / MIDI_BEND_CENTRE * st.mult[cv] as f64 / 255.0 * MIDI_BEND_ST;
+            let bend = if st.ctl.ic23 & (1 << side) != 0 { joy + midi_bend } else { 0.0 };
+            tune * (bend / 12.0).exp2()
+        });
         for i in 0..n {
             if i % BLOCK == 0 && self.dirty {
                 self.update_params();
@@ -256,12 +279,12 @@ impl Engine {
             }
             self.lf_noise += (noise / (0.5 * NOISE_VPP) - self.lf_noise) * self.a_lf_noise;
             let (a_env1, a_vca, a_dc, a_pw, a_fc) = (self.a_env1, self.a_vca, self.a_dc, self.a_pw, self.a_fc);
-            let (px, nx) = (self.joystick_x.max(0.0), (-self.joystick_x).max(0.0));
-            let mono_ctl = [self.pressure, self.fc_pedal, self.lf_noise.max(0.0)];
+            let mono_ctl = [pressure, pedal, self.lf_noise.max(0.0)];
             let osc = &self.osc;
             for (v, vo) in self.voices.iter_mut().enumerate() {
                 let p = vo.p;
                 let side = v / 4;
+                let tune = side_tune[side];
                 // mod banks: source × controllers × depth, summed per destination (VCO1, VCO2, Fc octaves; Q volts)
                 let mut m = [0.0f64; 4];
                 for (b, bank) in self.banks[side].iter().enumerate() {

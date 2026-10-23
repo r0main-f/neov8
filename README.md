@@ -59,8 +59,10 @@ Needs Rust (`brew install rustup && rustup default stable`, with `$(brew --prefi
 
 * **Standalone app:** `npm run app` builds the NeoV8 ROM and starts NeoV8 with a front panel drawn after a real
   Rev4 module (displays, LEDs, every button, the trimmers, arpeggiator speed, MASTER TUNE / VOLUME, POWER), the
-  joystick / pressure / Fc-pedal controls and an on-screen keyboard. Knobs turn by dragging up or down
-  (double-click centres a trimmer); A440 latches as the shift key for the next button. It uses the first MIDI
+  pressure / Fc-pedal controls and a VPK-5 keyboard drawn after the real one: 61 keys (velocity from where a key is
+  pressed), the joystick (drag it: left / right = −X / +X modulation, up / down = pitch bend; it springs back), the
+  ← / → (REV / FWD) buttons and the three front trimmers (pitch-bend range up and down, pressure sensitivity).
+  Knobs turn by dragging up or down (double-click centres a trimmer); A440 latches as the shift key for the next button. It uses the first MIDI
   input it finds (a USB keyboard or interface); `npm run app -- --midi-input ""` lists the ports,
   `--midi-output <name>` sends the instrument's MIDI out, `--help` shows the audio options.
 * **Sound banks:** LOAD BANK (below the panel) or `npm run app -- --bank <file>` loads a SysEx dump (`.syx`,
