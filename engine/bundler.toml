@@ -1,0 +1,3 @@
+# Bundle names for `cargo xtask bundle` (nih-plug)
+[v8-plugin]
+name = "NeoV8"

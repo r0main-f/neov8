@@ -153,6 +153,9 @@ pub struct NeoV8 {
     inst: Option<Box<Instrument>>,
     midi_out: MidiOut,
     blocks: u32,
+    /// The battery RAM last copied into the persisted state: if the state still holds it at a re-initialization,
+    /// the host did not restore a project in between.
+    bram_out: Vec<u8>,
 }
 
 impl Default for NeoV8 {
@@ -169,6 +172,7 @@ impl Default for NeoV8 {
             }),
             cmd_rx: rx,
             inst: None,
+            bram_out: Vec::with_capacity(0x2000),
             midi_out: MidiOut { sysex: Vec::with_capacity(1024), ..Default::default() },
             blocks: 0,
         }
@@ -221,13 +225,17 @@ pub fn save_bram_file(bram: &[u8]) {
 }
 
 impl NeoV8 {
-    fn copy_bram_out(&self) {
+    fn copy_bram_out(&mut self) {
         if let (Some(inst), Ok(mut b)) = (self.inst.as_ref(), self.params.bram.try_lock()) {
             let cur = &inst.machine.hw.bram[..];
             if b.as_slice() != cur {
                 b.clear();
                 b.extend_from_slice(cur);
                 self.shared.bram_dirty.store(true, Ordering::Relaxed);
+            }
+            if self.bram_out != cur {
+                self.bram_out.clear();
+                self.bram_out.extend_from_slice(cur);
             }
         }
     }
@@ -267,9 +275,13 @@ impl Plugin for NeoV8 {
     }
 
     fn initialize(&mut self, _layout: &AudioIOLayout, config: &BufferConfig, _ctx: &mut impl InitContext<Self>) -> bool {
-        // keep the battery RAM of a previous instance (sample-rate change), else the saved state, else the file
+        // a re-initialization keeps the running battery RAM (sample-rate change), unless the host has just restored
+        // a project's state (the persisted copy then differs from the last one written); else the saved state, else
+        // the file
         if let Some(old) = self.inst.as_ref() {
-            if let Ok(mut b) = self.params.bram.lock() { *b = old.machine.hw.bram.to_vec(); }
+            if let Ok(mut b) = self.params.bram.lock() {
+                if *b == self.bram_out { *b = old.machine.hw.bram.to_vec(); }
+            }
         }
         let mut bram = self.params.bram.lock().map(|b| b.clone()).unwrap_or_default();
         if bram.len() != 0x2000 && STANDALONE.load(Ordering::Relaxed) {

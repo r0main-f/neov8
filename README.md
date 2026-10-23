@@ -69,7 +69,13 @@ Needs Rust (`brew install rustup && rustup default stable`, with `$(brew --prefi
   battery RAM) the app loads the factory cassette recording from `Voyetra 8 synths/` when it is there (not
   distributed), otherwise an init bank, and runs AUTO TUNE. Programs, steps and tuning are kept in
   `~/Library/Application Support/NeoV8/battery.bin` (delete it to start fresh).
-* **Plugin:** the same crate (`engine/crates/v8-plugin`) exports CLAP and VST3; bundling for DAWs is the next step.
+* **Plugin (CLAP, VST3):** `npm run plugin` builds `NeoV8.clap` and `NeoV8.vst3` (nih-plug's bundler,
+  `cd engine && cargo xtask bundle v8-plugin --release`, output in `engine/target/bundled/`) and installs them in
+  `~/Library/Audio/Plug-Ins/CLAP` and `~/Library/Audio/Plug-Ins/VST3`. Same panel as the app; each instance is a
+  whole instrument whose battery RAM (programs, steps, tuning) is saved with the DAW project, and a new instance
+  starts like the app's first start. Notes on MIDI channel 1 reach the RIGHT side (both sides in LAYER and WHOLE 8),
+  channel 2 the LEFT side. MASTER volume / tune, joystick X, pressure and Fc pedal are automatable. The bundles are
+  ad-hoc signed for this Mac only (no notarisation); AU (Logic) is not built.
 * `engine/target/release/v8-cli render <script.json> <out.wav>` plays a scripted session (boot, AUTO TUNE, panel,
   notes, MIDI) on either ROM and writes the audio.
 

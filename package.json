@@ -15,6 +15,7 @@
     "fw": "node tools/gen-font.mjs && node tools/gen-ui-tables.mjs && node tools/gen-curves.mjs && make -C firmware",
     "engine:build": "cargo build --release --manifest-path engine/Cargo.toml",
     "app": "npm run fw && cargo run --release --manifest-path engine/Cargo.toml -p v8-plugin --bin neov8 --",
+    "plugin": "npm run fw && cd engine && cargo xtask bundle v8-plugin --release && mkdir -p ~/Library/Audio/Plug-Ins/CLAP ~/Library/Audio/Plug-Ins/VST3 && rm -rf ~/Library/Audio/Plug-Ins/CLAP/NeoV8.clap ~/Library/Audio/Plug-Ins/VST3/NeoV8.vst3 && cp -R target/bundled/NeoV8.clap ~/Library/Audio/Plug-Ins/CLAP/ && cp -R target/bundled/NeoV8.vst3 ~/Library/Audio/Plug-Ins/VST3/ && echo 'NeoV8.clap and NeoV8.vst3 installed in ~/Library/Audio/Plug-Ins'",
     "engine:test": "cargo test --manifest-path engine/Cargo.toml && cargo clippy --manifest-path engine/Cargo.toml --all-targets -- -D warnings",
     "fw:stock": "npm run roms && node tools/gen-font.mjs && node tools/gen-ui-tables.mjs && node tools/extract-tables.mjs && make -C firmware BUILD=build-stock DEFS=\"-D STOCK_TABLES\""
   },
