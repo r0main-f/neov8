@@ -317,10 +317,10 @@ fn draw_panel(ui: &mut egui::Ui, pan: &Pan, ram: &[u8; 16], st: &mut UiState, se
     if aresp.clicked() { st.a440 = !st.a440; }
     led(1055.0, 117.0, lit("a440"));
     pan.text(&p, 1055.0, 170.0, "A 440", 7.5, TEXT);
-    let mut tune = (params.master_tune.value() + 1.0) / 2.0 * 127.0;
+    let mut tune = params.master_tune.unmodulated_normalized_value() * 127.0;
     if knob(ui, pan, "master_tune", 1150.0, 140.0, 24.0, &mut tune, Scale::Bipolar, true) {
         setter.begin_set_parameter(&params.master_tune);
-        setter.set_parameter(&params.master_tune, tune / 127.0 * 2.0 - 1.0);
+        setter.set_parameter_normalized(&params.master_tune, tune / 127.0);
         setter.end_set_parameter(&params.master_tune);
     }
     pan.text(&p, 1150.0, 192.0, "MASTER", 7.5, TEXT);
@@ -522,8 +522,8 @@ fn vpk5(ui: &mut egui::Ui, st: &mut UiState, send: &dyn Fn(Cmd), params: &V8Para
     }
 
     // joystick: X = −X / +X mod controllers, Y = pitch bend (away = up); springs back to the centre
-    let c = pt(2.7, 4.15);
-    let area = Rect::from_center_size(c + Vec2::new(0.0, -0.6 * u), Vec2::new(3.0, 3.4) * u);
+    let c = pt(2.7, 3.85);
+    let area = Rect::from_center_size(c, Vec2::splat(2.8 * u));
     let resp = ui.interact(area, ui.id().with("vpk_joystick"), Sense::click_and_drag());
     if resp.drag_started() {
         setter.begin_set_parameter(&params.joystick_x);
@@ -547,29 +547,7 @@ fn vpk5(ui: &mut egui::Ui, st: &mut UiState, send: &dyn Fn(Cmd), params: &V8Para
         setter.end_set_parameter(&params.joystick_y);
     }
     let (jx, jy) = (params.joystick_x.value(), params.joystick_y.value());
-    // chrome cone (seen from the front, a little above)
-    let cone = |rx: f32, ry: f32, col: Color32| {
-        let pts: Vec<Pos2> = (0..40).map(|k| {
-            let a = k as f32 / 40.0 * std::f32::consts::TAU;
-            c + Vec2::new(a.cos() * rx, a.sin() * ry) * u
-        }).collect();
-        p.add(egui::Shape::convex_polygon(pts, col, Stroke::NONE));
-    };
-    cone(1.36, 0.56, Color32::from_rgb(110, 110, 112));
-    cone(1.3, 0.51, Color32::from_rgb(236, 236, 238));
-    cone(1.02, 0.39, Color32::from_rgb(150, 152, 156));
-    cone(0.72, 0.27, Color32::from_rgb(214, 216, 220));
-    cone(0.38, 0.14, Color32::from_rgb(90, 92, 96));
-    p.add(egui::Shape::convex_polygon(
-        vec![c + Vec2::new(-1.1, -0.15) * u, c + Vec2::new(-0.4, -0.4) * u, c + Vec2::new(-0.26, -0.13) * u, c + Vec2::new(-0.9, 0.07) * u],
-        Color32::from_white_alpha(120),
-        Stroke::NONE,
-    ));
-    let top = c + Vec2::new(jx * 0.85, -1.6 - jy * 0.45) * u;
-    p.line_segment([c, top], Stroke::new(0.2 * u, Color32::from_rgb(40, 40, 42)));
-    let knob_r = Rect::from_center_size(top + Vec2::new(0.0, 0.25 * u), Vec2::new(0.42, 0.8) * u);
-    p.rect_filled(knob_r, 0.19 * u, Color32::from_rgb(22, 22, 24));
-    p.rect_filled(Rect::from_min_size(knob_r.min + Vec2::new(0.08, 0.08) * u, Vec2::new(0.09, 0.6) * u), 0.04 * u, Color32::from_white_alpha(40));
+    joystick(&p, c, u, jx, jy);
     let _ = resp.on_hover_text("joystick: left / right = −X / +X modulation, up / down = pitch bend");
 
     // front trimmers: PITCH BEND RANGE UP, DOWN, PRESSURE SENSITIVITY
@@ -644,6 +622,87 @@ fn vpk5(ui: &mut egui::Ui, st: &mut UiState, send: &dyn Fn(Cmd), params: &V8Para
         if let Some((n, vel)) = want { send(Cmd::Note(n, true, vel)); }
         st.note = want.map(|w| w.0);
     }
+}
+
+/// Linear blend of two colours.
+fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
+    let t = t.clamp(0.0, 1.0);
+    let f = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    Color32::from_rgba_unmultiplied(f(a.r(), b.r()), f(a.g(), b.g()), f(a.b(), b.b()), f(a.a(), b.a()))
+}
+
+/// Grey level 0..1 with a slight cool tint (chrome).
+fn chrome(l: f32) -> Color32 {
+    let l = l.clamp(0.0, 1.0);
+    Color32::from_rgb((l * 236.0 + 8.0) as u8, (l * 240.0 + 9.0) as u8, (l * 246.0 + 10.0) as u8)
+}
+
+/// A surface between two ellipses (centre `c`, radii from `r0` to `r1`, `rings` × 72 cells), coloured per vertex by
+/// `col(angle, t)` with t = 0 at r0 and 1 at r1; angle 0 = right, π/2 = towards the viewer (down on screen).
+fn ellipse_band(p: &egui::Painter, c: Pos2, r0: Vec2, r1: Vec2, rings: usize, col: &dyn Fn(f32, f32) -> Color32) {
+    const N: usize = 72;
+    let mut m = egui::Mesh::default();
+    for i in 0..=rings {
+        let t = i as f32 / rings as f32;
+        let r = r0 + (r1 - r0) * t;
+        for k in 0..N {
+            let a = k as f32 / N as f32 * std::f32::consts::TAU;
+            m.colored_vertex(c + Vec2::new(a.cos() * r.x, a.sin() * r.y), col(a, t));
+        }
+    }
+    for i in 0..rings as u32 {
+        for k in 0..N as u32 {
+            let (a, b) = (i * N as u32 + k, i * N as u32 + (k + 1) % N as u32);
+            let (c2, d) = (a + N as u32, b + N as u32);
+            m.add_triangle(a, b, d);
+            m.add_triangle(a, d, c2);
+        }
+    }
+    p.add(egui::Shape::mesh(m));
+}
+
+/// The VPK-5 joystick seen from above: a polished chrome funnel (concave, lit from the top left) with the black
+/// knob, which moves the way the stick is pushed (`jx` right, `jy` away from the player = up on screen, −1..1).
+fn joystick(p: &egui::Painter, c: Pos2, u: f32, jx: f32, jy: f32) {
+    use std::f32::consts::FRAC_PI_4;
+    let r = 1.2 * u;
+    // light from the top left: `toward(a)` is 1 where the surface normal at angle `a` points at it
+    let toward = |a: f32| (a + 3.0 * FRAC_PI_4).cos(); // a = −135° (top left) gives 1
+    // contact shadow on the panel
+    ellipse_band(p, c + Vec2::new(0.08, 0.1) * u, Vec2::ZERO, Vec2::splat(r * 1.1), 6, &|_, t| {
+        Color32::from_black_alpha((80.0 * (1.0 - t * t)) as u8)
+    });
+    // rolled outer lip (convex): bright on the top left, dark on the bottom right
+    ellipse_band(p, c, Vec2::splat(r * 0.88), Vec2::splat(r), 4, &|a, t| {
+        let roll = (t * std::f32::consts::PI).sin();
+        chrome(0.42 + 0.38 * roll * (0.55 + 0.45 * toward(a)) + 0.3 * (-((a + 2.2) / 0.35).powi(2)).exp() * roll)
+    });
+    // inside (concave): the wall opposite the light catches it, the wall under the light is in shade; reflected
+    // rings, a white reflection on the lower right, darker towards the hole
+    ellipse_band(p, c, Vec2::splat(r * 0.13), Vec2::splat(r * 0.88), 16, &|a, t| {
+        let lit = 0.5 - 0.5 * toward(a);
+        let rings = 0.5 + 0.5 * (t * 11.0 + 0.6 * (2.0 * a).sin()).sin();
+        let glint = (-((a - 0.75) / 0.45).powi(2)).exp() * (-((t - 0.55) / 0.22).powi(2)).exp();
+        chrome((0.2 + 0.45 * t.powf(0.8) * (0.45 + 0.55 * lit) + 0.12 * rings * t + 0.6 * glint).min(1.0))
+    });
+    ellipse_band(p, c, Vec2::ZERO, Vec2::splat(r * 0.13), 2, &|_, _| Color32::from_rgb(10, 10, 11));
+    // stick: the shaft shows between the hole and the knob when pushed; shadow and knob (a domed black cap)
+    let knob = c + Vec2::new(jx, -jy) * 0.62 * u;
+    let kr = 0.3 * u;
+    if (knob - c).length() > 0.05 * u {
+        p.line_segment([c, knob], Stroke::new(0.13 * u, Color32::from_rgb(34, 34, 36)));
+        p.line_segment([c, knob], Stroke::new(0.04 * u, Color32::from_rgb(80, 80, 84)));
+    }
+    ellipse_band(p, knob + Vec2::new(0.16, 0.2) * u, Vec2::ZERO, Vec2::splat(kr * 1.15), 5, &|_, t| {
+        Color32::from_black_alpha((110.0 * (1.0 - t * t)) as u8)
+    });
+    ellipse_band(p, knob, Vec2::ZERO, Vec2::splat(kr), 8, &|a, t| {
+        // dome: lighter where the normal faces the light, darkest at the rim; a small specular spot
+        let n = toward(a) * t;
+        let spec = (-(((t - 0.45) / 0.18).powi(2) + ((a + 2.35) / 0.5).powi(2))).exp();
+        mix(Color32::from_rgb(12, 12, 13), Color32::from_rgb(92, 92, 98), (0.35 + 0.35 * n - 0.3 * t * t).max(0.0) + 0.9 * spec)
+    });
+    p.circle_stroke(knob, kr, Stroke::new(0.02 * u, Color32::from_rgb(6, 6, 6)));
 }
 
 fn is_black(n: u8) -> bool { matches!(n % 12, 1 | 3 | 6 | 8 | 10) }

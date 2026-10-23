@@ -37,13 +37,27 @@ convention; S p4 / p34 label the halves the other way round, and the code is aut
 **Pitch.**
 - A 100K 1% S.I.L. network sums CV, MOD (from the VCF card's mod demux) and PBEND into pin 15 of the CEM3340 (the
   summing node), with a 110K 1% offset from +10 V VREF (S p25, L).
-- Every input has the same weight: mod and pitch bend use the pitch slot's volts-per-octave.
+- CV and MOD have the same weight (the pitch slot's volts-per-octave). PBEND does not: it arrives through a further
+  100K 1% in series (a 0.01 µF node between, each line feeding the same VCO of two voices), so it weighs 1/3:
+  4 semitones per volt (S p25/26, P).
 - The scale adjust on pins 1–2 is fed by the V/OCT slot through 220K 1% (L).
 - Model: reuse the emulator's law (`sim/src/machine/vco.ts` `periodAt`), which autotune calibrates:
 
   `period = REF · 2^(−(s·x − tune)/12)`, with `x = pitch14/128` semitones and `s = scale · (1 + 0.25·(trim14 − 8192)/8192)`.
 
-  Mod/bend volts add `12 · V / (VFS·12/128)` semitones (I).
+  Mod volts add `12 · V / (VFS·12/128)` semitones (I); bend volts add `4 · V`.
+
+**Pitch-bend chain** (S p34 block diagram; S p5 VPK-5, S p9/10 pot panel, S p16 ANAMOD 2):
+- VPK-5: joystick Y pot on +8 V into an inverting LM324 (≈ ×9), then two diodes to the PITCH BEND RANGE UP / DOWN
+  rheostats (10K, I) into 10K: the trimmers scale each direction by 0.5–1 (P/I).
+- Pot panel: demux + hold, ×2 (LM324 on +8/−6.8 V, clips near ±6.5 V), PB BAL (500 Ω trimmer between diodes, 470 Ω),
+  CD4053 KBD/EXT select and **PB L / PB R enables** (PITCH BEND DEFEAT), U17 inverting ×0.31–0.45 (220K + 100K gain
+  trim, 100K feedback). MASTER TUNE (±15 V pot, 2M2 + 33K) sums into both U17s, after the enables.
+- ANAMOD 2: −PB and −PPED (rear PITCH pedal) through 50K each, 100K ∥ 0.01 µF (×2, 1 ms); a DG208 zeroes it during
+  autotune; the LEFT summer also gets a ±0.6 semitone offset pot (the L/R "balance").
+- Result (service trimmers centred): ≈ ±10 semitones at full joystick travel (8.4–12.3 over the gain trims), MASTER
+  TUNE ±2.7 semitones, PITCH pedal up only, up to "about an octave and a fifth" (UM p.124). The MIDI bend CVs'
+  analog path is not in the schematics (model: like the joystick at PBEND, `calib::MIDI_BEND_ST`, I).
 
 **Waveforms** (CEM3340 at +15 V: ramp 0→10 V, triangle 0→5 V, pulse open-emitter ≈ 0→13.7 V; D, Electric Druid).
 

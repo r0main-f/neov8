@@ -100,11 +100,21 @@ pub const LF_NOISE_HZ: f64 = 130.0;
 /// MIDI-controller CV bank (slots 128..135, `$3080+i`): the ROM writes a 7-bit controller as DAC word value << 6, so
 /// 127 gives 8128 and full scale is 8192 (C, measured on the NeoV8 ROM)
 pub const MIDI_CV_FULL: f64 = 8192.0;
+/// Pitch bend on the VCO cards: PBEND reaches each CEM3340 summing node through 100K 1% in series with the card's
+/// 100K 1% input (a 0.01 µF node between), so it weighs 1/3 of the pitch CV: 4 semitones per volt (S p25/26, P)
+pub const PBEND_ST_PER_V: f64 = 4.0;
 /// MIDI pitch-bend CVs (indices 4 LEFT, 6 RIGHT): 14-bit bend >> 2, centred at 4096, through the DAC1022 multiplier
-/// = pitch-bend sensitivity (`$5A79`, stock default $7F). Bend at full deflection and multiplier $FF, in
-/// semitones: not documented; chosen so that the stock default gives about ±2 semitones (I, check on a unit)
+/// = pitch-bend sensitivity (`$5A79`, stock default $7F). Their analog path is in no schematic; the Rev4 guide only
+/// says to set the sensitivity "until VOYETRA P Bend tracks master P Bend". Model: the CV swing (±2.67 V at $FF,
+/// −10.67 V reference) injected like the joystick at PBEND, centre removed: ±10.7 semitones at $FF (I, check)
 pub const MIDI_BEND_CENTRE: f64 = 4096.0;
-pub const MIDI_BEND_ST: f64 = 4.0;
-/// VPK-5 joystick pitch bend: the PITCH BEND RANGE UP / DOWN trimmers set each direction (UM p.61-62); their span
-/// is not documented: 0..12 semitones here (I)
-pub const JOY_BEND_MAX_ST: f64 = 12.0;
+pub const MIDI_BEND_ST: f64 = 4096.0 / 16384.0 * VFS * PBEND_ST_PER_V;
+/// VPK-5 joystick bend at full travel, per direction. Schematic chain (S p5 keyboard amp, S p9 pot panel ×2, PB BAL,
+/// PB L/R gain trims, S p16 ANAMOD 2 ×2, PBEND 4 st/V): about 10 semitones with the service trimmers centred, 8.4-12.3
+/// over the gain trims (P). The front PITCH BEND RANGE UP / DOWN trimmers (10K rheostats after the keyboard amp,
+/// I) scale it by 0.5-1: JOY_BEND_MIN_ST..JOY_BEND_MAX_ST (I; the joystick pot's travel is undocumented)
+pub const JOY_BEND_MAX_ST: f64 = 10.0;
+pub const JOY_BEND_MIN_ST: f64 = 5.0;
+/// MASTER TUNE: a ±15 V pot through 2M2 and 33K into the pitch-bend summers, ×2 at ANAMOD 2: ±0.68 V at PBEND, ±2.7
+/// semitones on both sides, not gated by PITCH BEND DEFEAT (S p9, P; UM p.34: "a range of several semitones")
+pub const MASTER_TUNE_ST: f64 = 2.7;

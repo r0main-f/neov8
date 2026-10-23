@@ -39,8 +39,9 @@ The panel is divided into blocks. Here they are left to right, top to bottom.
 
 ## 1b. VPK-5 keyboard (pp.4, 10–11, 16, 61–62, 77)
 - Joystick: X-axis gives the −X and +X modulation controllers; Y-axis is pitch bend up/down.
-- **FORWARD** and **REVERSE** buttons just above the joystick (left is FWD, right is REV). These are the only buttons with auto-repeat: holding one for about 0.5 s steps several Programs or Steps per second (p.11).
-- Three small trimmers at the front left, all absolute: PITCH BEND RANGE UP, PITCH BEND RANGE DOWN, PRESSURE THRESHOLD/SENSITIVITY (pp.61–62).
+- **FORWARD** and **REVERSE** buttons just above the joystick. The manual says "left is FORWARD, right is REVERSE" (p.10), but the Keyboard review (May 1984) says the module's keypad has them "backwards" relative to the keyboard, and the unit in the Doctor Mix video has ← on the left and → on the right; the app follows the arrows (← REV, → FWD). These are the only buttons with auto-repeat: holding one for about 0.5 s steps several Programs or Steps per second (p.11).
+- Three small trimmers at the front left, all absolute: PITCH BEND RANGE UP, PITCH BEND RANGE DOWN, PRESSURE THRESHOLD/SENSITIVITY (pp.61–62). No range is printed; the schematics give about 5–10 semitones (docs/audio-model.md §2).
+- MASTER TUNE: "a range of several semitones" (p.34); ±2.7 semitones from the schematic. The rear PITCH pedal bends up only, up to "about an octave and a fifth", "a greater range than that of the keyboard's joystick" (p.124).
 - Key velocity and channel pressure sensing. The keyboard connects to the module with an XLR cable that also carries the keyboard's power (pp.2, 4).
 - The manual does not give the number of keys.
 
