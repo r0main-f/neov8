@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use v8_core::Instrument;
+use v8_voice::calib::{JOY_BEND_MAX_ST, JOY_BEND_MIN_ST, MASTER_TUNE_ST};
 
 pub mod bank;
 mod editor;
@@ -51,8 +52,13 @@ pub enum Cmd {
 }
 
 /// MIDI pitch-bend sensitivity in battery RAM ($5A79, the DAC1022 multiplier of the bend CVs). The firmware reads
-/// it but never initialises it; the stock default is $7F.
+/// it but never initialises it (the stock default is $7F). When it is 0 the app sets $30: about ±2 semitones in the
+/// model (calib MIDI_BEND_ST), the usual range of a MIDI keyboard's bend.
 pub const BRAM_PBSENS: usize = 0x1a79;
+pub const PBSENS_DEFAULT: u8 = 0x30;
+/// VPK-5 PITCH BEND RANGE trimmers (semitones at full joystick travel), schematic estimate (calib)
+const JOY_BEND_RANGE: FloatRange = FloatRange::Linear { min: JOY_BEND_MIN_ST as f32, max: JOY_BEND_MAX_ST as f32 };
+const JOY_BEND_MID: f32 = ((JOY_BEND_MIN_ST + JOY_BEND_MAX_ST) / 2.0) as f32;
 
 /// State shared between the audio thread and the editor.
 pub struct Shared {
@@ -102,13 +108,13 @@ impl Default for V8Params {
             editor_state: EguiState::from_size(1400, 715),
             bram: Mutex::new(Vec::new()),
             master: FloatParam::new("Master volume", 0.8, FloatRange::Linear { min: 0.0, max: 1.0 }),
-            master_tune: FloatParam::new("Master tune", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }).with_unit(" st"),
+            master_tune: FloatParam::new("Master tune", 0.0, FloatRange::Linear { min: -MASTER_TUNE_ST as f32, max: MASTER_TUNE_ST as f32 }).with_unit(" st"),
             joystick_x: FloatParam::new("Joystick X", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }),
             pressure: FloatParam::new("Key pressure", 0.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
             fc_pedal: FloatParam::new("Fc pedal", 0.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
             joystick_y: FloatParam::new("Joystick Y (pitch bend)", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }),
-            bend_up: FloatParam::new("Pitch bend range up", 2.0, FloatRange::Linear { min: 0.0, max: 12.0 }).with_unit(" st"),
-            bend_down: FloatParam::new("Pitch bend range down", 2.0, FloatRange::Linear { min: 0.0, max: 12.0 }).with_unit(" st"),
+            bend_up: FloatParam::new("Pitch bend range up", JOY_BEND_MID, JOY_BEND_RANGE).with_unit(" st"),
+            bend_down: FloatParam::new("Pitch bend range down", JOY_BEND_MID, JOY_BEND_RANGE).with_unit(" st"),
             pressure_sens: FloatParam::new("Pressure sensitivity", 1.0, FloatRange::Linear { min: 0.0, max: 2.0 }),
         }
     }
@@ -332,7 +338,7 @@ impl Plugin for NeoV8 {
             if let Ok(mut s) = self.shared.status.lock() { *s = msg; }
         }
         if bram.len() == 0x2000 && bram[BRAM_PBSENS] == 0 {
-            bram[BRAM_PBSENS] = 0x7f; // never set by the firmware: without it MIDI pitch bend is silent
+            bram[BRAM_PBSENS] = PBSENS_DEFAULT; // never set by the firmware: without it MIDI pitch bend is silent
         }
         let sr = config.sample_rate as f64;
         let mut inst = Box::new(Instrument::new(NEOV8_ROM, Some(&bram[..]), sr, VCO_SEED));
@@ -356,7 +362,7 @@ impl Plugin for NeoV8 {
                 Cmd::Pot(ch, v) => inst.pot(ch, v),
                 Cmd::Note(n, down, vel) => inst.key(n, down, vel),
                 Cmd::LoadBram(mut b) => {
-                    if b[BRAM_PBSENS] == 0 { b[BRAM_PBSENS] = 0x7f; }
+                    if b[BRAM_PBSENS] == 0 { b[BRAM_PBSENS] = PBSENS_DEFAULT; }
                     inst.machine.set_bram(&b[..]);
                     inst.machine.reset();
                 }
