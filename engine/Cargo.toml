@@ -1,7 +1,7 @@
 # NeoV8 Sound: a native Voyetra Eight (emulator + analog voice model). Plan: docs/audio-model.md, README.
 [workspace]
 resolver = "2"
-members = ["crates/v8-machine", "crates/v8-voice", "crates/v8-core", "crates/v8-cli", "crates/v8-plugin"]
+members = ["crates/v8-machine", "crates/v8-voice", "crates/v8-core", "crates/v8-cli", "crates/v8-plugin", "xtask"]
 
 [workspace.package]
 version = "0.1.0"
