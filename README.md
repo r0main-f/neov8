@@ -54,10 +54,12 @@ npm test           # scenarios + CPU + stock ROM + firmware tests (needs cc65: b
 (`v8-machine`, a behaviour-identical port of `sim/src/machine`, checked by `sim/test/engine-diff.test.ts`) and a
 model of the analog voice cards, modulation banks included (`v8-voice`, `docs/audio-model.md`; what is settled and
 what still needs a real unit: `docs/audio-validation.md`).
-Needs Rust (`brew install rustup && rustup default stable`, with `$(brew --prefix rustup)/bin` on the PATH):
+Needs Rust (`brew install rustup && rustup default stable`; the npm scripts find Homebrew's toolchain themselves):
 `npm run engine:build`, `npm run engine:test`.
 
-* **Standalone app:** `npm run app` builds the NeoV8 ROM and starts NeoV8 with a front panel drawn after a real
+* **Standalone app:** `npm run app:install` builds `NeoV8.app` (icon in `tools/app/`, made by `make-icon.py`) and
+  installs it in `~/Applications`: open it from Finder, Spotlight or Launchpad. `npm run app` builds and starts it
+  from the terminal. It shows NeoV8 with a front panel drawn after a real
   Rev4 module (displays, LEDs, every button, the trimmers, arpeggiator speed, MASTER TUNE / VOLUME, POWER), the
   pressure / Fc-pedal controls and a VPK-5 keyboard drawn after the real one: 61 keys (velocity from where a key is
   pressed), the joystick (drag it: left / right = −X / +X modulation, up / down = pitch bend; it springs back), the
