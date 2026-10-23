@@ -76,6 +76,10 @@ Needs Rust (`brew install rustup && rustup default stable`, with `$(brew --prefi
   starts like the app's first start. Notes on MIDI channel 1 reach the RIGHT side (both sides in LAYER and WHOLE 8),
   channel 2 the LEFT side. MASTER volume / tune, joystick X, pressure and Fc pedal are automatable. The bundles are
   ad-hoc signed for this Mac only (no notarisation); AU (Logic) is not built.
+* **CPU:** one instrument (emulated CPU + 8 voices) takes about 2 % of one core silent and 3.6 % with 8 notes held
+  (Apple Silicon; `cargo run --release -p v8-core --example cpu`). The panel redraws only when a display, LED or
+  parameter changes, or on input, thanks to small patches to two GUI crates (`engine/vendor/*/NEOV8.md`); with
+  the window open it adds about 6 %, mostly one redraw per blink of the tempo LED.
 * `engine/target/release/v8-cli render <script.json> <out.wav>` plays a scripted session (boot, AUTO TUNE, panel,
   notes, MIDI) on either ROM and writes the audio.
 

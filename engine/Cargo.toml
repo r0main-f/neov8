@@ -2,6 +2,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/v8-machine", "crates/v8-voice", "crates/v8-core", "crates/v8-cli", "crates/v8-plugin", "xtask"]
+# third-party crates with NeoV8 changes (vendor/*/NEOV8.md): path dependencies, not linted as our code
+exclude = ["vendor"]
 
 [workspace.package]
 version = "0.1.0"

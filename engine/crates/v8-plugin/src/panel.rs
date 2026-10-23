@@ -53,6 +53,10 @@ pub const LEDS: &[(&str, usize, u8)] = &[
     ("arp_left", 6, 7), ("pbdef_r", 6, 6), ("hold_l", 6, 4), ("reldef_l", 6, 3), ("reldef_r", 6, 2), ("hold_r", 6, 1),
     ("pbdef_l", 6, 0), ("arp_up", 9, 7), ("arp_pause", 9, 6), ("arp_random", 9, 5), ("arp_down", 9, 4),
     ("autotune", 9, 3), ("a440", 9, 1), ("arp_right", 9, 0),
+    // firmware LEDTAB (src/ui/tables.asm LEDL_*): EDIT, STORE, TAPE load / dump
+    ("edit", 3, 6), ("store", 3, 0), ("tape_load", 0, 6), ("tape_dump", 0, 0),
+    // tempo LED: the arpeggiator clock, blinks at the speed knob's rate (stock and NeoV8, clock.asm clk_out)
+    ("tempo", 9, 2),
 ];
 
 /// Octave LEDs [up, normal, down] per side.
