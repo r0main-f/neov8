@@ -1,0 +1,17 @@
+NeoV8 for Linux (x86-64; glibc 2.35 or later: Ubuntu 22.04, Debian 12, Fedora 36 and newer)
+=============================================================================================
+
+Uses only the usual desktop libraries: ALSA (libasound2), OpenGL, X11/xcb and the Wayland client library. JACK is
+used when installed. LOAD BANK opens the desktop's file chooser (xdg-desktop-portal). Nothing else to install.
+
+App:     ./neov8   (ALSA by default, which also works through PipeWire; ./neov8 --backend jack for JACK;
+         ./neov8 --help for every option).
+         Menu entry: copy neov8.desktop to ~/.local/share/applications/ (edit its Exec= line to where neov8 is)
+         and neov8.png to ~/.local/share/icons/hicolor/256x256/apps/.
+Plugins: copy NeoV8.clap to ~/.clap/ and NeoV8.vst3 (the whole folder) to ~/.vst3/, then rescan in your DAW.
+
+No sound bank is included: the instrument starts with an init bank. Load your own with LOAD BANK (SysEx .syx,
+cassette recording .wav, or 8 KB battery image .bin). Your programs are kept in ~/.local/share/neov8/battery.bin
+(the app) or in the DAW project (the plugin).
+
+NeoV8 is free software (GPL-3.0-or-later): https://github.com/r0main-f/neov8

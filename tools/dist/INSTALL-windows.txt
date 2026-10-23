@@ -1,0 +1,18 @@
+NeoV8 for Windows (64-bit, Windows 10 or later)
+===============================================
+
+Nothing else to install.
+
+App:     run NeoV8.exe (keep it anywhere). Windows SmartScreen may warn about an unknown publisher: choose
+         "More info" > "Run anyway".
+Plugins: copy NeoV8.vst3 (the whole folder) to C:\Program Files\Common Files\VST3\
+         and NeoV8.clap to C:\Program Files\Common Files\CLAP\ , then rescan in your DAW.
+
+The app uses WASAPI and the first MIDI input it finds; run NeoV8.exe --help from a terminal for the options
+(e.g. --midi-input "name", --output-device "name").
+
+No sound bank is included: the instrument starts with an init bank. Load your own with LOAD BANK (SysEx .syx,
+cassette recording .wav, or 8 KB battery image .bin). Your programs are kept in %APPDATA%\NeoV8\battery.bin (the
+app) or in the DAW project (the plugin).
+
+NeoV8 is free software (GPL-3.0-or-later): https://github.com/r0main-f/neov8

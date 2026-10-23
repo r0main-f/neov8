@@ -11,10 +11,14 @@ const SECS: f64 = 10.0;
 fn main() {
     let rom = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../firmware/build/neov8.bin")).expect("npm run fw");
     // the app's battery file (same place as v8-plugin's bram_file)
-    let app_bram = std::env::var_os("HOME").map(|h| {
-        let dir = if cfg!(target_os = "macos") { "Library/Application Support/NeoV8" } else { ".local/share/neov8" };
-        std::path::PathBuf::from(h).join(dir).join("battery.bin")
-    });
+    let app_bram = if cfg!(target_os = "windows") {
+        std::env::var_os("APPDATA").map(|d| std::path::PathBuf::from(d).join("NeoV8").join("battery.bin"))
+    } else {
+        std::env::var_os("HOME").map(|h| {
+            let dir = if cfg!(target_os = "macos") { "Library/Application Support/NeoV8" } else { ".local/share/neov8" };
+            std::path::PathBuf::from(h).join(dir).join("battery.bin")
+        })
+    };
     let path = std::env::args().nth(1).map(std::path::PathBuf::from).or(app_bram);
     let bram = path.as_ref().and_then(|p| std::fs::read(p).ok());
     match (&path, &bram) {

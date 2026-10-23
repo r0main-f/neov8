@@ -234,11 +234,16 @@ pub fn default_bram() -> Vec<u8> {
 
 /// Battery-RAM file of the standalone app.
 pub fn bram_file() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME")?;
-    let dir = if cfg!(target_os = "macos") {
-        PathBuf::from(home).join("Library/Application Support/NeoV8")
+    let home = || std::env::var_os("HOME").map(PathBuf::from);
+    let dir = if cfg!(target_os = "windows") {
+        PathBuf::from(std::env::var_os("APPDATA")?).join("NeoV8")
+    } else if cfg!(target_os = "macos") {
+        home()?.join("Library/Application Support/NeoV8")
     } else {
-        PathBuf::from(home).join(".local/share/neov8")
+        match std::env::var_os("XDG_DATA_HOME") {
+            Some(d) if !d.is_empty() => PathBuf::from(d).join("neov8"),
+            _ => home()?.join(".local/share/neov8"),
+        }
     };
     Some(dir.join("battery.bin"))
 }

@@ -1,9 +1,13 @@
 //! NeoV8 standalone: `neov8 [nih-plug standalone options]`.
 //!
-//! Defaults: CoreAudio on macOS, 256-sample periods, and the first MIDI input port (e.g. a USB keyboard) when no
+//! Defaults: CoreAudio on macOS, WASAPI on Windows, ALSA on Linux (nih-plug's "auto" means JACK or silence), 256-sample periods, and the first MIDI input port (e.g. a USB keyboard) when no
 //! `--midi-input` is given. `neov8 --midi-input ""` lists the ports; `neov8 --help` shows every option.
 //! `--bank <file>` loads a bank at start (.syx dump, .wav cassette recording, 8 KB battery image).
-//! Battery RAM (programs, steps, tuning) is kept in ~/Library/Application Support/NeoV8/battery.bin.
+//! Battery RAM (programs, steps, tuning) is kept in battery.bin: ~/Library/Application Support/NeoV8 (macOS),
+//! %APPDATA%\NeoV8 (Windows), ~/.local/share/neov8 (Linux).
+
+// release builds on Windows open no console window next to the instrument
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 use nih_plug::prelude::*;
 use std::sync::atomic::Ordering;
@@ -21,8 +25,15 @@ fn main() {
         }
     }
     let has = |a: &[String], f: &str| a.iter().any(|x| x == f || x.starts_with(&format!("{f}=")));
-    if cfg!(target_os = "macos") && !has(&args, "--backend") && !has(&args, "-b") {
-        args.extend(["--backend".into(), "core-audio".into()]);
+    let backend = if cfg!(target_os = "macos") {
+        "core-audio"
+    } else if cfg!(target_os = "windows") {
+        "wasapi"
+    } else {
+        "alsa"
+    };
+    if !has(&args, "--backend") && !has(&args, "-b") {
+        args.extend(["--backend".into(), backend.into()]);
     }
     if !has(&args, "--period-size") && !has(&args, "-p") {
         args.extend(["--period-size".into(), "256".into()]);

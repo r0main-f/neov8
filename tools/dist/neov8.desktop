@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=NeoV8
+Comment=Voyetra Eight synthesizer (NeoV8 OS and analog voice model)
+Exec=neov8
+Icon=neov8
+Terminal=false
+Categories=AudioVideo;Audio;Music;Midi;
