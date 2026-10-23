@@ -11,8 +11,10 @@ use crate::panel::{self, OCT_L, OCT_R, POTS_L, POTS_R, POT_ARP_SPEED};
 use crate::{bank, Cmd, Shared, V8Params, STANDALONE};
 use nih_plug::prelude::*;
 use nih_plug_egui::egui::{self, Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
-use nih_plug_egui::{create_egui_editor, widgets};
-use std::sync::atomic::Ordering;
+use nih_plug_egui::{create_egui_editor, idle_check_id, widgets, IdleCheck};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -64,16 +66,40 @@ impl Pan {
     }
 }
 
+/// What the panel shows that can change without input: displays and LEDs, start-up state, the status line and the
+/// host-automatable parameters.
+fn fingerprint(shared: &Shared, params: &V8Params) -> u64 {
+    let mut h = DefaultHasher::new();
+    for d in &shared.display { d.load(Ordering::Relaxed).hash(&mut h); }
+    shared.ready.load(Ordering::Relaxed).hash(&mut h);
+    if let Ok(s) = shared.status.try_lock() { s.hash(&mut h); }
+    for p in [&params.master, &params.master_tune, &params.joystick_x, &params.pressure, &params.fc_pedal] {
+        p.value().to_bits().hash(&mut h);
+    }
+    h.finish()
+}
+
 pub fn create(params: Arc<V8Params>, shared: Arc<Shared>) -> Option<Box<dyn Editor>> {
     let state = UiState { a440: false, pots: [64.0; 16], note: None, last_save: Instant::now(), status: String::new() };
-    create_egui_editor(params.editor_state.clone(), state, |_, _| {}, move |ctx, setter, st| {
-        ctx.request_repaint_after(Duration::from_millis(30));
+    // The window runs an egui pass only on input, on a requested repaint or when the fingerprint of what it
+    // shows changed (vendor/egui-baseview/NEOV8.md): an idle panel costs a hash per screen refresh.
+    let shown = Arc::new(AtomicU64::new(0));
+    let (check_shared, check_params, check_shown) = (shared.clone(), params.clone(), shown.clone());
+    let check = IdleCheck(Arc::new(move || fingerprint(&check_shared, &check_params) != check_shown.load(Ordering::Relaxed)));
+    create_egui_editor(params.editor_state.clone(), state, move |ctx, _| {
+        ctx.data_mut(|d| d.insert_temp(idle_check_id(), check.clone()));
+    }, move |ctx, setter, st| {
         let ram: [u8; 16] = std::array::from_fn(|i| shared.display[i].load(Ordering::Relaxed));
         let send = |c: Cmd| {
             if let Ok(mut tx) = shared.cmd.lock() { let _ = tx.push(c); }
         };
         if st.status.is_empty() {
             if let Ok(s) = shared.status.lock() { st.status = s.clone(); }
+        }
+        let fp = fingerprint(&shared, &params);
+        if shown.swap(fp, Ordering::Relaxed) != fp {
+            // a non-zero delay asks egui for one repaint (zero asks for two); this pass already shows the change
+            ctx.request_repaint_after(Duration::from_nanos(1));
         }
         if STANDALONE.load(Ordering::Relaxed)
             && st.last_save.elapsed() > Duration::from_secs(5)
@@ -206,14 +232,18 @@ fn draw_panel(ui: &mut egui::Ui, pan: &Pan, ram: &[u8; 16], st: &mut UiState, se
     // ---- programmer: remote / tape column and keypad
     outline(188.0, 200.0, 225.0, 234.0);
     press(ui, st, "edit", 218.0, 228.0, Kind::Grey);
+    led(248.0, 234.0, lit("edit"));
     pan.text(&p, 248.0, 220.0, "edit", 8.0, TEXT);
     pan.text(&p, 222.0, 258.0, "REMOTE", 10.5, TEXT);
     press(ui, st, "store", 218.0, 290.0, Kind::Grey);
+    led(248.0, 296.0, lit("store"));
     pan.text(&p, 248.0, 282.0, "store", 8.0, TEXT);
     press(ui, st, "tape_load", 218.0, 335.0, Kind::Blue);
+    led(248.0, 341.0, lit("tape_load"));
     pan.text(&p, 248.0, 327.0, "load", 8.0, TEXT);
     pan.text(&p, 222.0, 360.0, "TAPE", 10.5, TEXT);
     press(ui, st, "tape_dump", 218.0, 392.0, Kind::Blue);
+    led(248.0, 398.0, lit("tape_dump"));
     pan.text(&p, 248.0, 384.0, "dump", 8.0, TEXT);
     let keys = [["k1", "k2", "k3"], ["k4", "k5", "k6"], ["k7", "k8", "k9"], ["fwd", "k0", "rev"]];
     for (r, row) in keys.iter().enumerate() {
@@ -250,6 +280,8 @@ fn draw_panel(ui: &mut egui::Ui, pan: &Pan, ram: &[u8; 16], st: &mut UiState, se
     }
     pan.text(&p, 848.0, 158.0, "SLOW", 7.0, TEXT);
     pan.text(&p, 894.0, 158.0, "FAST", 7.0, TEXT);
+    led(870.0, 182.0, lit("tempo"));
+    pan.text(&p, 870.0, 198.0, "tempo", 7.0, TEXT);
 
     // ---- logo, tune, volume, power
     outline(940.0, 10.0, 552.0, 222.0);
