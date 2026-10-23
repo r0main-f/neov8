@@ -56,6 +56,8 @@ Sources used:
 | 10 | Mod gain `G` and threshold `D0` | All modulation depths | Vibrato recordings at depths `$18`, `$30`, `$60`, `$C0` |
 | 12 | Does the SSM2024 threshold cut release tails? The model turns a voice off ≈ 30 dB below sustain (0.2 V); Tony Clark's samples (retrosynth.com) fade smoothly over 40+ dB, but may carry reverb | Release tails, quiet passages | Single notes with a long release, dry, scope on the voice VCA control |
 | 11 | Which early-board variant: the Rev A VCF photo shows LM13600 where the schematic has SSM2024 | Which VCA law applies to which revision | Photo of the user's VCF card |
+| 13 | Pitch-bend ranges. MIDI bend: the model gives ±4 semitones at full deflection and multiplier $FF, so ±2 at the stock sensitivity $7F (`MIDI_BEND_ST`). VPK-5 joystick: the RANGE UP / DOWN trimmers span 0..12 semitones in the model (`JOY_BEND_MAX_ST`). Neither is documented | Every bend | A held note with MIDI bend at full up / down, at sensitivity $7F and $FF; the joystick at full travel with each trimmer at minimum and maximum |
+| 14 | Do the MIDI-controller CVs (`$3080+i`) add to the VPK-5's own controllers, and do PITCH BEND DEFEAT L/R gate MIDI bend as well as the joystick? The model adds them and gates both | MIDI mod wheel, pressure, bend | Mod wheel and joystick together on a +X bank; MIDI bend with PITCH BEND DEFEAT on |
 
 ## 4. Reference audio and patch data
 

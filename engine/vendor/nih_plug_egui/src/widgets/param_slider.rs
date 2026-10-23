@@ -236,7 +236,7 @@ impl<'a, P: Param> ParamSlider<'a, P> {
             ui.painter().rect_stroke(
                 response.rect,
                 0.0,
-                Stroke::new(1.0, ui.visuals().widgets.active.bg_fill),
+                Stroke::new(1.0_f32, ui.visuals().widgets.active.bg_fill),
                 egui::StrokeKind::Middle,
             );
         }

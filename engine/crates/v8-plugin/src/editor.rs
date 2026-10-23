@@ -37,6 +37,15 @@ const LED_ON: Color32 = Color32::from_rgb(255, 36, 36);
 const LED_OFF: Color32 = Color32::from_rgb(70, 16, 16);
 const SEG_OFF: Color32 = Color32::from_rgb(52, 10, 10);
 
+// VPK-5 colours (video frames: warm light grey, natural wood cheeks, ivory keys)
+const VPK_BODY: Color32 = Color32::from_rgb(196, 194, 184);
+const VPK_TOP: Color32 = Color32::from_rgb(208, 206, 196);
+const VPK_LIP: Color32 = Color32::from_rgb(180, 178, 168);
+const VPK_EDGE: Color32 = Color32::from_rgb(150, 148, 138);
+const WOOD: Color32 = Color32::from_rgb(196, 152, 98);
+const WOOD_GRAIN: Color32 = Color32::from_rgb(160, 116, 70);
+const IVORY: Color32 = Color32::from_rgb(242, 238, 224);
+
 const LOW: u8 = 36; // on-screen keyboard (VPK-5 range the ROM scans: 36..96)
 const HIGH: u8 = 96;
 
@@ -52,6 +61,10 @@ struct UiState {
     note: Option<u8>,
     last_save: Instant,
     status: String,
+    /// VPK-5 joystick position while dragged, and the front buttons held
+    joy: (f32, f32),
+    vpk_rev: bool,
+    vpk_fwd: bool,
 }
 
 /// Panel units -> screen.
@@ -73,14 +86,17 @@ fn fingerprint(shared: &Shared, params: &V8Params) -> u64 {
     for d in &shared.display { d.load(Ordering::Relaxed).hash(&mut h); }
     shared.ready.load(Ordering::Relaxed).hash(&mut h);
     if let Ok(s) = shared.status.try_lock() { s.hash(&mut h); }
-    for p in [&params.master, &params.master_tune, &params.joystick_x, &params.pressure, &params.fc_pedal] {
+    for p in [
+        &params.master, &params.master_tune, &params.joystick_x, &params.joystick_y, &params.pressure, &params.fc_pedal,
+        &params.bend_up, &params.bend_down, &params.pressure_sens,
+    ] {
         p.value().to_bits().hash(&mut h);
     }
     h.finish()
 }
 
 pub fn create(params: Arc<V8Params>, shared: Arc<Shared>) -> Option<Box<dyn Editor>> {
-    let state = UiState { a440: false, pots: [64.0; 16], note: None, last_save: Instant::now(), status: String::new() };
+    let state = UiState { a440: false, pots: [64.0; 16], note: None, last_save: Instant::now(), status: String::new(), joy: (0.0, 0.0), vpk_rev: false, vpk_fwd: false };
     // The window runs an egui pass only on input, on a requested repaint or when the fingerprint of what it
     // shows changed (vendor/egui-baseview/NEOV8.md): an idle panel costs a hash per screen refresh.
     let shown = Arc::new(AtomicU64::new(0));
@@ -120,7 +136,7 @@ pub fn create(params: Arc<V8Params>, shared: Arc<Shared>) -> Option<Box<dyn Edit
             ui.add_space(8.0);
             strip(ui, st, &send, &params, setter);
             ui.add_space(6.0);
-            keyboard(ui, st, &send);
+            vpk5(ui, st, &send, &params, setter);
         });
     })
 }
@@ -437,7 +453,7 @@ fn strip(ui: &mut egui::Ui, st: &mut UiState, send: &dyn Fn(Cmd), params: &V8Par
     });
     ui.horizontal(|ui| {
         ui.style_mut().visuals.override_text_color = Some(TEXT);
-        for (label, p) in [("joystick X", &params.joystick_x), ("key pressure", &params.pressure), ("Fc pedal", &params.fc_pedal)] {
+        for (label, p) in [("key pressure", &params.pressure), ("Fc pedal", &params.fc_pedal)] {
             ui.label(label);
             ui.add(widgets::ParamSlider::for_param(p, setter).with_width(150.0));
             ui.add_space(12.0);
@@ -445,40 +461,188 @@ fn strip(ui: &mut egui::Ui, st: &mut UiState, send: &dyn Fn(Cmd), params: &V8Par
     });
 }
 
-/// On-screen keyboard C2..C7 (the VPK-5 range the ROM scans): press and drag to play (velocity 100).
-fn keyboard(ui: &mut egui::Ui, st: &mut UiState, send: &dyn Fn(Cmd)) {
+/// The VPK-5 keyboard, after the unit in the Doctor Mix video (QrGLSp1WzzY): warm light-grey body with wooden end
+/// cheeks, 61 keys C2..C7 in a black key well, and on the left the chrome joystick between the ← (REV) and → (FWD)
+/// buttons, with the three front trimmers below (UM p.61-62: PITCH BEND RANGE UP / DOWN, PRESSURE SENSITIVITY).
+/// Geometry in white-key widths `u`.
+fn vpk5(ui: &mut egui::Ui, st: &mut UiState, send: &dyn Fn(Cmd), params: &V8Params, setter: &ParamSetter) {
+    const W: f32 = 44.0; // cheek, left panel, 36 white keys, right block, cheek
+    const H: f32 = 7.4;
+    const KX: f32 = 5.0; // first white key
+    const KT: f32 = 1.3; // top of the key well
+    const KB: f32 = 6.0; // bottom of the white keys
+    let avail = ui.available_size();
+    let u = (avail.x / W).min(avail.y.max(60.0) / H);
+    let (full, _) = ui.allocate_exact_size(Vec2::new(avail.x, u * H), Sense::hover());
+    let o = Pos2::new(full.center().x - u * W / 2.0, full.top());
+    let pt = |x: f32, y: f32| Pos2::new(o.x + x * u, o.y + y * u);
+    let rc = |x: f32, y: f32, w: f32, h: f32| Rect::from_min_size(pt(x, y), Vec2::new(w, h) * u);
+    let p = ui.painter().clone();
+
+    // body: top rear surface, front lip, wooden cheeks
+    p.rect_filled(rc(0.3, 0.0, W - 0.6, H), 0.15 * u, VPK_BODY);
+    p.rect_filled(rc(0.3, 0.0, W - 0.6, KT), 0.15 * u, VPK_TOP);
+    p.line_segment([pt(0.5, KT), pt(W - 0.5, KT)], Stroke::new(0.04 * u, VPK_EDGE));
+    p.rect_filled(rc(0.3, KB + 0.3, W - 0.6, H - KB - 0.3), 0.1 * u, VPK_LIP);
+    p.line_segment([pt(0.5, KB + 0.3), pt(W - 0.5, KB + 0.3)], Stroke::new(0.04 * u, VPK_EDGE));
+    for x0 in [0.0, W - 0.6] {
+        let r = rc(x0, -0.1, 0.6, H + 0.2);
+        p.rect_filled(r, 0.18 * u, WOOD);
+        for k in 1..4 {
+            let x = r.left() + r.width() * k as f32 / 4.0;
+            p.line_segment([Pos2::new(x, r.top() + 0.2 * u), Pos2::new(x + 0.03 * u, r.bottom() - 0.2 * u)], Stroke::new(0.03 * u, WOOD_GRAIN));
+        }
+        p.rect_stroke(r, 0.18 * u, Stroke::new(0.04 * u, WOOD_GRAIN), StrokeKind::Inside);
+    }
+
+    // ← (REV) and → (FWD): held buttons with auto-repeat in the ROM
+    for (fwd, x) in [(false, 1.4), (true, 4.0)] {
+        let r = Rect::from_center_size(pt(x, 1.95), Vec2::splat(0.55 * u));
+        let resp = ui.interact(r, ui.id().with(("vpk_btn", fwd)), Sense::click_and_drag());
+        let down = resp.is_pointer_button_down_on();
+        let held = if fwd { &mut st.vpk_fwd } else { &mut st.vpk_rev };
+        if down != *held {
+            *held = down;
+            send(Cmd::VpkButton(fwd, down));
+        }
+        p.rect_filled(r.translate(Vec2::splat(0.04 * u)), 0.06 * u, Color32::from_black_alpha(90));
+        p.rect_filled(r, 0.06 * u, if down { CREAM.gamma_multiply(0.75) } else { CREAM });
+        p.rect_stroke(r, 0.06 * u, Stroke::new(0.03 * u, Color32::from_rgb(150, 145, 130)), StrokeKind::Inside);
+        // the arrow, drawn (the default font has no arrow glyphs)
+        let dir = if fwd { 1.0 } else { -1.0 };
+        let ink = Color32::from_rgb(60, 55, 45);
+        let (cc, a) = (r.center(), 0.15 * u);
+        p.line_segment([cc - Vec2::new(dir * a, 0.0), cc + Vec2::new(dir * a * 0.4, 0.0)], Stroke::new(0.05 * u, ink));
+        p.add(egui::Shape::convex_polygon(
+            vec![cc + Vec2::new(dir * a, 0.0), cc + Vec2::new(dir * a * 0.2, -0.09 * u), cc + Vec2::new(dir * a * 0.2, 0.09 * u)],
+            ink,
+            Stroke::NONE,
+        ));
+        let _ = resp.on_hover_text(if fwd { "FWD (→): next program or step" } else { "REV (←): previous program or step" });
+    }
+
+    // joystick: X = −X / +X mod controllers, Y = pitch bend (away = up); springs back to the centre
+    let c = pt(2.7, 4.15);
+    let area = Rect::from_center_size(c + Vec2::new(0.0, -0.6 * u), Vec2::new(3.0, 3.4) * u);
+    let resp = ui.interact(area, ui.id().with("vpk_joystick"), Sense::click_and_drag());
+    if resp.drag_started() {
+        setter.begin_set_parameter(&params.joystick_x);
+        setter.begin_set_parameter(&params.joystick_y);
+        st.joy = (0.0, 0.0);
+    }
+    if resp.dragged() {
+        let d = resp.drag_delta() / (1.1 * u);
+        let (mut x, mut y) = (st.joy.0 + d.x, st.joy.1 - d.y);
+        let len = (x * x + y * y).sqrt();
+        if len > 1.0 { x /= len; y /= len; }
+        st.joy = (x, y);
+        setter.set_parameter(&params.joystick_x, x);
+        setter.set_parameter(&params.joystick_y, y);
+    }
+    if resp.drag_stopped() {
+        st.joy = (0.0, 0.0);
+        setter.set_parameter(&params.joystick_x, 0.0);
+        setter.set_parameter(&params.joystick_y, 0.0);
+        setter.end_set_parameter(&params.joystick_x);
+        setter.end_set_parameter(&params.joystick_y);
+    }
+    let (jx, jy) = (params.joystick_x.value(), params.joystick_y.value());
+    // chrome cone (seen from the front, a little above)
+    let cone = |rx: f32, ry: f32, col: Color32| {
+        let pts: Vec<Pos2> = (0..40).map(|k| {
+            let a = k as f32 / 40.0 * std::f32::consts::TAU;
+            c + Vec2::new(a.cos() * rx, a.sin() * ry) * u
+        }).collect();
+        p.add(egui::Shape::convex_polygon(pts, col, Stroke::NONE));
+    };
+    cone(1.36, 0.56, Color32::from_rgb(110, 110, 112));
+    cone(1.3, 0.51, Color32::from_rgb(236, 236, 238));
+    cone(1.02, 0.39, Color32::from_rgb(150, 152, 156));
+    cone(0.72, 0.27, Color32::from_rgb(214, 216, 220));
+    cone(0.38, 0.14, Color32::from_rgb(90, 92, 96));
+    p.add(egui::Shape::convex_polygon(
+        vec![c + Vec2::new(-1.1, -0.15) * u, c + Vec2::new(-0.4, -0.4) * u, c + Vec2::new(-0.26, -0.13) * u, c + Vec2::new(-0.9, 0.07) * u],
+        Color32::from_white_alpha(120),
+        Stroke::NONE,
+    ));
+    let top = c + Vec2::new(jx * 0.85, -1.6 - jy * 0.45) * u;
+    p.line_segment([c, top], Stroke::new(0.2 * u, Color32::from_rgb(40, 40, 42)));
+    let knob_r = Rect::from_center_size(top + Vec2::new(0.0, 0.25 * u), Vec2::new(0.42, 0.8) * u);
+    p.rect_filled(knob_r, 0.19 * u, Color32::from_rgb(22, 22, 24));
+    p.rect_filled(Rect::from_min_size(knob_r.min + Vec2::new(0.08, 0.08) * u, Vec2::new(0.09, 0.6) * u), 0.04 * u, Color32::from_white_alpha(40));
+    let _ = resp.on_hover_text("joystick: left / right = −X / +X modulation, up / down = pitch bend");
+
+    // front trimmers: PITCH BEND RANGE UP, DOWN, PRESSURE SENSITIVITY
+    for (k, (x, y, prm, tip)) in [
+        (1.55, 6.75, &params.bend_up, "pitch bend range up"),
+        (3.75, 6.75, &params.bend_down, "pitch bend range down"),
+        (2.65, 7.05, &params.pressure_sens, "pressure sensitivity"),
+    ].into_iter().enumerate() {
+        let c = pt(x, y);
+        let r = 0.26 * u;
+        let resp = ui.interact(Rect::from_center_size(c, Vec2::splat(2.4 * r)), ui.id().with(("vpk_trim", k)), Sense::click_and_drag());
+        if resp.drag_started() { setter.begin_set_parameter(prm); }
+        if resp.dragged() {
+            let v = (prm.unmodulated_normalized_value() - resp.drag_delta().y / (6.0 * u)).clamp(0.0, 1.0);
+            setter.set_parameter_normalized(prm, v);
+        }
+        if resp.drag_stopped() { setter.end_set_parameter(prm); }
+        if resp.double_clicked() {
+            setter.begin_set_parameter(prm);
+            setter.set_parameter(prm, prm.default_plain_value());
+            setter.end_set_parameter(prm);
+        }
+        p.circle_filled(c + Vec2::splat(0.05 * u), r, Color32::from_black_alpha(100));
+        p.circle_filled(c, r, Color32::from_rgb(20, 20, 20));
+        for t in 0..16 {
+            let a = t as f32 / 16.0 * std::f32::consts::TAU;
+            let d = Vec2::new(a.cos(), a.sin());
+            p.line_segment([c + d * r * 0.78, c + d * r], Stroke::new(0.025 * u, Color32::from_rgb(70, 70, 70)));
+        }
+        p.circle_filled(c, r * 0.62, Color32::from_rgb(200, 200, 195));
+        let a = (-225.0 + 270.0 * prm.unmodulated_normalized_value()).to_radians();
+        p.line_segment([c, c + Vec2::new(a.cos(), a.sin()) * r * 0.6], Stroke::new(0.05 * u, Color32::from_rgb(30, 30, 30)));
+        let _ = resp.on_hover_text(format!("{tip}: {}", prm));
+    }
+
+    // keys: 61, C2..C7; velocity from where the key is pressed (further down = harder)
     let whites: Vec<u8> = (LOW..=HIGH).filter(|n| !is_black(*n)).collect();
-    let w = ui.available_width();
-    let ww = w / whites.len() as f32;
-    let hgt = (ww * 5.2).min(130.0);
-    let (r, resp) = ui.allocate_exact_size(Vec2::new(w, hgt), Sense::click_and_drag());
-    let p = ui.painter();
+    p.rect_filled(rc(KX - 0.12, KT - 0.05, whites.len() as f32 + 0.24, KB - KT + 0.35), 0.05 * u, Color32::from_rgb(14, 14, 14));
     let key_rect = |n: u8| -> Rect {
         let wi = whites.iter().position(|&x| x >= n).unwrap_or(0) as f32;
-        if is_black(n) {
-            Rect::from_min_size(Pos2::new(r.left() + wi * ww - ww * 0.3, r.top()), Vec2::new(ww * 0.6, hgt * 0.62))
-        } else {
-            Rect::from_min_size(Pos2::new(r.left() + wi * ww, r.top()), Vec2::new(ww - 1.0, hgt))
-        }
+        if is_black(n) { rc(KX + wi - 0.29, KT, 0.58, 2.9) } else { rc(KX + wi + 0.02, KT, 0.96, KB - KT) }
     };
-    p.rect_filled(r.expand(3.0), 3.0, Color32::from_rgb(30, 30, 30));
+    let kb = rc(KX, KT, whites.len() as f32, KB - KT);
+    let resp = ui.interact(kb, ui.id().with("vpk_keys"), Sense::click_and_drag());
     for &n in &whites {
-        let c = if st.note == Some(n) { Color32::from_rgb(220, 180, 180) } else { Color32::from_rgb(238, 236, 228) };
-        p.rect_filled(key_rect(n), 2.0, c);
+        let r = key_rect(n);
+        let down = st.note == Some(n);
+        p.rect_filled(r, 0.06 * u, if down { Color32::from_rgb(214, 208, 192) } else { IVORY });
+        let front = Rect::from_min_max(Pos2::new(r.left(), r.bottom() - 0.22 * u), r.max);
+        p.rect_filled(front, 0.06 * u, if down { Color32::from_rgb(190, 184, 168) } else { Color32::from_rgb(222, 216, 200) });
     }
     for n in (LOW..=HIGH).filter(|n| is_black(*n)) {
-        let c = if st.note == Some(n) { Color32::from_rgb(140, 40, 40) } else { Color32::from_rgb(16, 16, 16) };
-        p.rect_filled(key_rect(n), 2.0, c);
+        let r = key_rect(n);
+        let down = st.note == Some(n);
+        p.rect_filled(r.translate(Vec2::new(0.04, 0.06) * u), 0.05 * u, Color32::from_black_alpha(110));
+        p.rect_filled(r, 0.05 * u, if down { Color32::from_rgb(52, 52, 54) } else { Color32::from_rgb(18, 18, 19) });
+        let cap = Rect::from_min_max(r.min + Vec2::new(0.07, 0.05) * u, Pos2::new(r.max.x - 0.07 * u, r.bottom() - 0.35 * u));
+        p.rect_filled(cap, 0.04 * u, if down { Color32::from_rgb(64, 64, 66) } else { Color32::from_rgb(40, 40, 42) });
     }
     let hit = resp.interact_pointer_pos().and_then(|pos| {
         (LOW..=HIGH).filter(|n| is_black(*n)).find(|&n| key_rect(n).contains(pos))
             .or_else(|| whites.iter().copied().find(|&n| key_rect(n).contains(pos)))
+            .map(|n| {
+                let r = key_rect(n);
+                let depth = ((pos.y - r.top()) / r.height()).clamp(0.0, 1.0);
+                (n, (30.0 + 97.0 * depth).round() as u8)
+            })
     });
     let want = if resp.is_pointer_button_down_on() { hit } else { None };
-    if want != st.note {
-        if let Some(n) = st.note { send(Cmd::Note(n, false, 0)); }
-        if let Some(n) = want { send(Cmd::Note(n, true, 100)); }
-        st.note = want;
+    if want.map(|w| w.0) != st.note {
+        if let Some(n) = st.note { send(Cmd::Note(n, false, 64)); }
+        if let Some((n, vel)) = want { send(Cmd::Note(n, true, vel)); }
+        st.note = want.map(|w| w.0);
     }
 }
 

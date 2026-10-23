@@ -97,3 +97,14 @@ pub const MOD_GAIN: f64 = 1.0;
 pub const Q_MOD_K: f64 = 0.6;
 /// LF noise (bank C replacement controller): the noise low-passed at ≈ 130 Hz (I)
 pub const LF_NOISE_HZ: f64 = 130.0;
+/// MIDI-controller CV bank (slots 128..135, `$3080+i`): the ROM writes a 7-bit controller as DAC word value << 6, so
+/// 127 gives 8128 and full scale is 8192 (C, measured on the NeoV8 ROM)
+pub const MIDI_CV_FULL: f64 = 8192.0;
+/// MIDI pitch-bend CVs (indices 4 LEFT, 6 RIGHT): 14-bit bend >> 2, centred at 4096, through the DAC1022 multiplier
+/// = pitch-bend sensitivity (`$5A79`, stock default $7F). Bend at full deflection and multiplier $FF, in
+/// semitones: not documented; chosen so that the stock default gives about ±2 semitones (I, check on a unit)
+pub const MIDI_BEND_CENTRE: f64 = 4096.0;
+pub const MIDI_BEND_ST: f64 = 4.0;
+/// VPK-5 joystick pitch bend: the PITCH BEND RANGE UP / DOWN trimmers set each direction (UM p.61-62); their span
+/// is not documented: 0..12 semitones here (I)
+pub const JOY_BEND_MAX_ST: f64 = 12.0;

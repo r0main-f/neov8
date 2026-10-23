@@ -46,7 +46,13 @@ pub enum Cmd {
     LoadBram(Box<[u8; 0x2000]>),
     /// POWER switch: CPU reset, battery RAM kept
     Power,
+    /// VPK-5 front buttons: true = → (FWD), false = ← (REV); down / up
+    VpkButton(bool, bool),
 }
+
+/// MIDI pitch-bend sensitivity in battery RAM ($5A79, the DAC1022 multiplier of the bend CVs). The firmware reads
+/// it but never initialises it; the stock default is $7F.
+pub const BRAM_PBSENS: usize = 0x1a79;
 
 /// State shared between the audio thread and the editor.
 pub struct Shared {
@@ -78,18 +84,32 @@ pub struct V8Params {
     pub pressure: FloatParam,
     #[id = "fcpedal"]
     pub fc_pedal: FloatParam,
+    /// keyboard joystick Y: + away from the player = pitch bend up
+    #[id = "joyy"]
+    pub joystick_y: FloatParam,
+    /// VPK-5 front trimmers: PITCH BEND RANGE UP / DOWN (semitones), PRESSURE SENSITIVITY (scales key pressure)
+    #[id = "bendup"]
+    pub bend_up: FloatParam,
+    #[id = "benddown"]
+    pub bend_down: FloatParam,
+    #[id = "pressens"]
+    pub pressure_sens: FloatParam,
 }
 
 impl Default for V8Params {
     fn default() -> Self {
         Self {
-            editor_state: EguiState::from_size(1400, 640),
+            editor_state: EguiState::from_size(1400, 715),
             bram: Mutex::new(Vec::new()),
             master: FloatParam::new("Master volume", 0.8, FloatRange::Linear { min: 0.0, max: 1.0 }),
             master_tune: FloatParam::new("Master tune", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }).with_unit(" st"),
             joystick_x: FloatParam::new("Joystick X", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }),
             pressure: FloatParam::new("Key pressure", 0.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
             fc_pedal: FloatParam::new("Fc pedal", 0.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
+            joystick_y: FloatParam::new("Joystick Y (pitch bend)", 0.0, FloatRange::Linear { min: -1.0, max: 1.0 }),
+            bend_up: FloatParam::new("Pitch bend range up", 2.0, FloatRange::Linear { min: 0.0, max: 12.0 }).with_unit(" st"),
+            bend_down: FloatParam::new("Pitch bend range down", 2.0, FloatRange::Linear { min: 0.0, max: 12.0 }).with_unit(" st"),
+            pressure_sens: FloatParam::new("Pressure sensitivity", 1.0, FloatRange::Linear { min: 0.0, max: 2.0 }),
         }
     }
 }
@@ -311,6 +331,9 @@ impl Plugin for NeoV8 {
             nih_log!("NeoV8: {msg}");
             if let Ok(mut s) = self.shared.status.lock() { *s = msg; }
         }
+        if bram.len() == 0x2000 && bram[BRAM_PBSENS] == 0 {
+            bram[BRAM_PBSENS] = 0x7f; // never set by the firmware: without it MIDI pitch bend is silent
+        }
         let sr = config.sample_rate as f64;
         let mut inst = Box::new(Instrument::new(NEOV8_ROM, Some(&bram[..]), sr, VCO_SEED));
         if !have {
@@ -332,18 +355,25 @@ impl Plugin for NeoV8 {
                 Cmd::Key(k) => inst.panel_key(k),
                 Cmd::Pot(ch, v) => inst.pot(ch, v),
                 Cmd::Note(n, down, vel) => inst.key(n, down, vel),
-                Cmd::LoadBram(b) => {
+                Cmd::LoadBram(mut b) => {
+                    if b[BRAM_PBSENS] == 0 { b[BRAM_PBSENS] = 0x7f; }
                     inst.machine.set_bram(&b[..]);
                     inst.machine.reset();
                 }
                 Cmd::Power => inst.machine.reset(),
+                Cmd::VpkButton(fwd, down) => {
+                    if fwd { inst.machine.hw.vpk_fwd = down } else { inst.machine.hw.vpk_rev = down }
+                }
             }
         }
         let e = &mut inst.engine;
         e.master = self.params.master.value() as f64;
         e.master_tune = self.params.master_tune.value() as f64;
         e.joystick_x = self.params.joystick_x.value() as f64;
-        e.pressure = self.params.pressure.value() as f64;
+        e.pressure = (self.params.pressure.value() * self.params.pressure_sens.value()).min(1.0) as f64;
+        e.joystick_y = self.params.joystick_y.value() as f64;
+        e.bend_up = self.params.bend_up.value() as f64;
+        e.bend_down = self.params.bend_down.value() as f64;
         e.fc_pedal = self.params.fc_pedal.value() as f64;
 
         let n = buffer.samples();

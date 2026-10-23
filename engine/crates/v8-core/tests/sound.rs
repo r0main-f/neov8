@@ -104,3 +104,34 @@ fn renders_much_faster_than_real_time() {
         assert!(factor < 0.15, "8 voices take {:.0} % of real time", factor * 100.0);
     }
 }
+
+#[test]
+fn pitch_bend_from_the_joystick_and_midi_and_its_defeat() {
+    let Some(mut i) = tuned() else { return };
+    let f = |i: &mut Instrument| { let x = note(i, 69, 600.0); pitch(&x[ms(200.0)..ms(500.0)]) };
+    let cents = |a: f64, b: f64| 1200.0 * (a / b).log2();
+    let f0 = f(&mut i);
+    // VPK-5 joystick: up by the RANGE UP trimmer, down by RANGE DOWN
+    i.engine.bend_up = 2.0;
+    i.engine.bend_down = 5.0;
+    i.engine.joystick_y = 1.0;
+    let up = cents(f(&mut i), f0);
+    i.engine.joystick_y = -1.0;
+    let down = cents(f(&mut i), f0);
+    i.engine.joystick_y = 0.0;
+    eprintln!("joystick: up {up:.1} cents, down {down:.1} cents");
+    assert!((up - 200.0).abs() < 5.0 && (down + 500.0).abs() < 5.0);
+    // MIDI pitch bend through the controller CV bank, scaled by the pitch-bend sensitivity ($5A79, stock $7F)
+    i.machine.hw.bram[0x1a79] = 0x7f;
+    i.midi_in(&[0xe0, 0x7f, 0x7f]);
+    let midi = cents(f(&mut i), f0);
+    let want = 100.0 * v8_voice::calib::MIDI_BEND_ST * (8159.0 - 4096.0) / 4096.0 * 127.0 / 255.0;
+    eprintln!("MIDI bend max: {midi:.1} cents (model {want:.1})");
+    assert!((midi - want).abs() < 5.0);
+    // PITCH BEND DEFEAT on both sides: no bend
+    i.panel_key(113);
+    i.panel_key(81);
+    render(&mut i, ms(300.0));
+    let defeated = cents(f(&mut i), f0);
+    assert!(defeated.abs() < 3.0, "bend defeated: {defeated:.1} cents");
+}
