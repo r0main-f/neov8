@@ -1,0 +1,119 @@
+# NeoV8: firmware, engine tests, and the instrument (app + CLAP + VST3) for Linux, Windows and macOS.
+# Each run leaves NeoV8-linux.tar.gz, NeoV8-windows.zip and NeoV8-macos.zip as workflow artifacts.
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: cc65
+        run: sudo apt-get update && sudo apt-get install -y cc65
+      - run: npm ci
+      - run: npm run gen
+      - name: firmware (ca65)
+        run: node tools/gen-font.mjs && node tools/gen-ui-tables.mjs && node tools/gen-curves.mjs && make -C firmware
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: firmware/build/neov8.bin
+
+  instrument:
+    needs: firmware
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux, os: ubuntu-22.04 }
+          - { name: windows, os: windows-latest }
+          - { name: macos, os: macos-14 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: firmware/build
+      - name: Linux libraries
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libgl-dev libjack-dev libx11-xcb-dev libxcb1-dev libxcb-dri2-0-dev \
+            libxcb-icccm4-dev libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev libgtk-3-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.name == 'macos' && 'x86_64-apple-darwin,aarch64-apple-darwin' || '' }}
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - name: tests and lint
+        if: matrix.name == 'linux'
+        working-directory: engine
+        run: cargo test --release && cargo clippy --all-targets -- -D warnings
+
+      - name: plugins (CLAP, VST3)
+        working-directory: engine
+        run: |
+          if [ "${{ matrix.name }}" = macos ]; then
+            cargo xtask bundle-universal v8-plugin --release
+          else
+            cargo xtask bundle v8-plugin --release
+          fi
+
+      - name: app
+        working-directory: engine
+        run: |
+          if [ "${{ matrix.name }}" = macos ]; then
+            cargo build --release -p v8-plugin --bin neov8 --target x86_64-apple-darwin
+            cargo build --release -p v8-plugin --bin neov8 --target aarch64-apple-darwin
+            lipo -create -output target/neov8-universal \
+              target/x86_64-apple-darwin/release/neov8 target/aarch64-apple-darwin/release/neov8
+          else
+            cargo build --release -p v8-plugin --bin neov8
+          fi
+
+      - name: package
+        run: |
+          D=dist/NeoV8-${{ matrix.name }}
+          mkdir -p "$D"
+          cp -R engine/target/bundled/NeoV8.clap engine/target/bundled/NeoV8.vst3 "$D"/
+          cp LICENSE "$D"/LICENSE.txt
+          cp tools/dist/INSTALL-${{ matrix.name }}.txt "$D"/INSTALL.txt
+          case "${{ matrix.name }}" in
+            linux)
+              cp engine/target/release/neov8 "$D"/
+              cp tools/dist/neov8.desktop "$D"/
+              cp tools/app/NeoV8.png "$D"/neov8.png
+              tar -C dist -czf dist/NeoV8-linux.tar.gz NeoV8-linux ;;
+            windows)
+              cp engine/target/release/neov8.exe "$D"/NeoV8.exe
+              (cd dist && 7z a -tzip NeoV8-windows.zip NeoV8-windows > /dev/null) ;;
+            macos)
+              sh tools/app/bundle-macos.sh engine/target/neov8-universal "$D"
+              codesign --force --deep -s - "$D"/NeoV8.clap "$D"/NeoV8.vst3
+              (cd dist && ditto -c -k --keepParent NeoV8-macos NeoV8-macos.zip) ;;
+          esac
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NeoV8-${{ matrix.name }}
+          path: |
+            dist/NeoV8-linux.tar.gz
+            dist/NeoV8-windows.zip
+            dist/NeoV8-macos.zip
+          if-no-files-found: error

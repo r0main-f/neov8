@@ -1,7 +1,7 @@
 """NeoV8 app icon: "V8" in red LED segments and panel buttons on the module's black, in the macOS icon grid.
 
-python3 tools/app/make-icon.py  ->  tools/app/NeoV8.png (1024 px) and tools/app/NeoV8.icns (needs numpy, opencv;
-iconutil and sips on macOS). The output is committed; rerun only to change the design.
+python3 tools/app/make-icon.py  ->  tools/app/NeoV8.png (1024 px), NeoV8.ico (Windows) and NeoV8.icns (needs numpy,
+opencv; iconutil and sips on macOS). The output is committed; rerun only to change the design.
 """
 import os
 import subprocess
@@ -123,6 +123,25 @@ out = cv2.resize(img, (1024, 1024), interpolation=cv2.INTER_AREA)
 bgra = np.dstack([out[..., 2], out[..., 1], out[..., 0], out[..., 3]])
 png = os.path.join(HERE, "NeoV8.png")
 cv2.imwrite(png, np.clip(bgra * 255 + 0.5, 0, 255).astype(np.uint8))
+
+# .ico (Windows): PNG-compressed entries
+import struct
+
+sizes = (16, 24, 32, 48, 64, 128, 256)
+blobs = []
+for sz in sizes:
+    small = cv2.resize(img, (sz, sz), interpolation=cv2.INTER_AREA)
+    sb = np.dstack([small[..., 2], small[..., 1], small[..., 0], small[..., 3]])
+    ok, enc = cv2.imencode(".png", np.clip(sb * 255 + 0.5, 0, 255).astype(np.uint8))
+    blobs.append(enc.tobytes())
+head = struct.pack("<HHH", 0, 1, len(sizes))
+offset = 6 + 16 * len(sizes)
+entries = b""
+for sz, blob in zip(sizes, blobs):
+    entries += struct.pack("<BBBBHHII", sz % 256, sz % 256, 0, 0, 1, 32, len(blob), offset)
+    offset += len(blob)
+with open(os.path.join(HERE, "NeoV8.ico"), "wb") as f:
+    f.write(head + entries + b"".join(blobs))
 
 # .icns
 with tempfile.TemporaryDirectory() as tmp:
