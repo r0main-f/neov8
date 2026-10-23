@@ -2,7 +2,7 @@
   "name": "neov8",
   "private": true,
   "license": "GPL-3.0-or-later",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "description": "NeoV8 - a new operating system for the Voyetra Eight Rev4, with a browser front-panel simulator",
   "type": "module",
   "scripts": {
