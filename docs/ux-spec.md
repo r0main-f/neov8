@@ -39,7 +39,7 @@ a refused write is detected by reading the byte back.
 | STORE armed | `St` | destination, blinking | `␣L` / `␣r` program side · `SP` step |
 | SYSTEM menu | item `30` | mnemonic `Pn` | value `PU` |
 | messages | `StOrEd` `PrOtEC` `CAnCEL` `UndOnE` `InIt L` `SEnd ?` `SEnt` `tU 1.2` `tU oK` | | |
-| boot screen | `nEO 0.8` (firmware version) for 1.3 s at power-on; the first button or knob dismisses it and acts normally | | |
+| boot screen | `nEO 0.9` (firmware version) for 1.3 s at power-on; the first button or knob dismisses it and acts normally | | |
 
 **Edited flag:** a blinking decimal point — after the program number on the Normal page, after the
 page id (`L1.`) in EDIT — while the edit buffer differs from the stored program. Rev4 had no indication at all. **Compare:** the program window shows `CP` blinking, EDIT/STORE LEDs blink.

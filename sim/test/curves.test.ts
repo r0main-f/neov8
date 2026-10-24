@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CURVES, adsrRateFormula } from '../../tools/gen-curves.mjs';
-import { TABLES } from '../../tools/extract-tables.mjs';
+import { STOCK_TABLES as TABLES } from '../../tools/stock-tables.mjs';
 import { ROOT, hasStock, loadStockRom, buildFirmware, loadNeoRomFrom } from './helpers';
 
 const BUILD = 'build-curves';

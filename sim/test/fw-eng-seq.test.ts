@@ -398,7 +398,7 @@ function neo() {
 }
 const keysDown = (ne: MachineBackend) => [...ne.machine.ram.slice(S.vx_key, S.vx_key + 8)].filter((k) => k & 0x80).map((k) => k & 0x7f).sort();
 
-describe('polysequencer, NeoV8 additions', () => {
+describe.skipIf(!hasStock)('polysequencer, NeoV8 additions', () => {
   beforeAll(() => { if (!S.seq_ev) { buildFirmware(BUILD, ['STOCK_TABLES', 'STUB_UI', 'STUB_TUNE']); S = neoSymbols(BUILD); } });
 
   it('start checks: nothing selected, nothing to play, song needs both channels, song with REC, memory full', () => {

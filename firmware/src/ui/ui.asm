@@ -94,7 +94,7 @@ ui_init:
         sta ui_last
         lda ui_tn+1
         sta ui_last+1
-        ldx #5                      ; boot screen "nEO 0.8" (firmware version, decimal point on digit 4) for
+        ldx #5                      ; boot screen "nEO 0.9" (firmware version, decimal point on digit 4) for
 @bs:    lda ui_s_boot,x             ; 1.3 s; the first button or knob dismisses it (and acts normally)
         sta ui_tx,x
         dex

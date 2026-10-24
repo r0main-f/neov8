@@ -33,7 +33,11 @@ ui_nv_init:
         sta NV_MAGIC
         lda #'8'
         sta NV_MAGIC+1
-@r:     rts
+@r:     lda BRAM_PBSENS             ; MIDI pitch-bend sensitivity (the bend CVs' multiplier): nothing else sets it,
+        bne @x                      ; and 0 silences MIDI bend; an unset one gets the stock default $7F
+        lda #$7f
+        sta BRAM_PBSENS
+@x:     rts
 
 ; ---------------------------------------------------------------- addresses
 ; A = program number -> ui_p = PROG_BASE + 40*A
