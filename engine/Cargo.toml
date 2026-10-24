@@ -6,7 +6,7 @@ members = ["crates/v8-machine", "crates/v8-voice", "crates/v8-core", "crates/v8-
 exclude = ["vendor"]
 
 [workspace.package]
-version = "0.9.0"
+version = "0.9.1"
 edition = "2021"
 license = "GPL-3.0-or-later"
 

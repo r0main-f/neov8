@@ -24,7 +24,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: firmware
-          path: firmware/build/neov8.bin
+          path: firmware/build/neov8*.bin
 
   instrument:
     needs: firmware
