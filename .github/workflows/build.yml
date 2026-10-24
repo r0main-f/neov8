@@ -1,4 +1,4 @@
-# NeoV8: firmware, engine tests, and the instrument (app + CLAP + VST3) for Linux, Windows and macOS.
+# NeoV8: firmware and simulator tests, engine tests, and the instrument (app + CLAP + VST3) for Linux, Windows and macOS.
 # Each run leaves NeoV8-linux.tar.gz, NeoV8-windows.zip and NeoV8-macos.zip as workflow artifacts.
 name: build
 
@@ -19,9 +19,8 @@ jobs:
       - name: cc65
         run: sudo apt-get update && sudo apt-get install -y cc65
       - run: npm ci
-      - run: npm run gen
-      - name: firmware (ca65)
-        run: node tools/gen-font.mjs && node tools/gen-ui-tables.mjs && node tools/gen-curves.mjs && make -C firmware
+      - name: firmware (ca65) and simulator tests (the stock-ROM parity tests skip without a dump)
+        run: npm test
       - uses: actions/upload-artifact@v7
         with:
           name: firmware
