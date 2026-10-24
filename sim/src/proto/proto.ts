@@ -35,7 +35,7 @@ interface Touch { mn: string; value: string; until: number }
 interface Msg { text: string; until: number; blink?: boolean; splash?: boolean }
 
 /** firmware version shown by the boot screen (firmware/src/api.inc FW_VERSION_MAJ/MIN) */
-export const FW_VERSION = '0.8';
+export const FW_VERSION = '0.9';
 
 const TRIM_POTS: Record<string, keyof Trims> = { a: 'a', r: 'r', lfo: 'lfo', glide: 'glide', fc: 'fc', detune: 'detune', vol: 'vol' };
 

@@ -121,6 +121,16 @@ describe('NeoV8 ROM: UI internals', () => {
     expect(m.cpu.illegal).toBe(0);
   });
 
+  it('boot gives an unset MIDI pitch-bend sensitivity ($5A79 = 0, MIDI bend silent) the stock $7F, keeps others', () => {
+    for (const [v, want] of [[0, 0x7f], [0x40, 0x40]]) {
+      const bat = protoBattery();
+      bat[0x1a79] = v;
+      const b = new MachineBackend('neov8-ui', rom, bat);
+      b.run(300);
+      expect(b.machine.bram[0x1a79]).toBe(want);
+    }
+  });
+
   it.skipIf(FULL)('power-on recalls the step and applies the performance (programs included) once', () => {
     const b = boot();
     const log = readCallLog(b.machine.ram);
